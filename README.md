@@ -42,10 +42,11 @@ not current YouTube activity.
 ## Live mode
 
 Copy `.env.example` to `.env.local`, add a server-side `YOUTUBE_API_KEY`, and
-set `DATA_MODE=live`. The `/api/trends` route then retrieves India-wide Shorts,
-validates the response, filters videos to 60 seconds or less, derives only
-transparent metrics, and returns source URLs. A failed live request returns an
-explicit error; it never silently substitutes demo data.
+set `DATA_MODE=live`. The `/api/trends` route retrieves India-wide popular
+videos through `videos.list`, verifies statistics, classifies candidates up to
+180 seconds as Shorts with explicit confidence, derives transparent metrics,
+and returns source URLs. A failed live request returns an explicit error; it
+never silently substitutes demo data.
 
 OpenAI is intentionally behind a separate request boundary. It should only be
 called for category naming, trend explanation, or content ideas when the user
@@ -55,8 +56,9 @@ asks for that interpretation and the source evidence is available.
 
 | Route | Purpose |
 | --- | --- |
-| `/` | Premium home radar and executive momentum snapshot |
+| `/` and `/home` | Premium home radar and executive momentum snapshot |
 | `/trending` | Filterable India-wide Shorts feed |
+| `/trending/sounds` | Trending Sounds workspace entry point |
 | `/trending/[videoId]` | Evidence, score, why-trending, viral DNA, and ideas |
 | `/categories` | AI-built category map |
 | `/categories/[slug]` | Category subtopics and representative Shorts |
@@ -78,6 +80,7 @@ asks for that interpretation and the source evidence is available.
 - `POST /api/ideas`
 - `GET /api/usage`
 - `GET /api/entitlements`
+- `GET /api/health?probe=true` (development provider smoke test; no secrets)
 
 These endpoints are intentionally small and typed around product domain
 objects. Provider credentials never reach the browser.

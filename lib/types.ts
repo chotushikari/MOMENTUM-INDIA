@@ -22,6 +22,8 @@ export type ShortVideo = {
   sourceMode: SourceMode;
   sourceUrl: string;
   why: string;
+  isShort?: boolean;
+  shortConfidence?: number;
 };
 
 export type Category = {
@@ -52,4 +54,3 @@ export type Entitlement =
   | "exports";
 
 export type PlanId = "free" | "creator" | "pro";
-

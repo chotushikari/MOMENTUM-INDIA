@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { engagementRate, labelForScore, scoreTrend, velocity } from "@/lib/intelligence/scoring";
+import { classifyShort } from "@/lib/youtube";
 
 describe("momentum scoring", () => {
   it("calculates engagement from observed interactions", () => {
@@ -15,5 +16,11 @@ describe("momentum scoring", () => {
     expect(labelForScore(87)).toBe("Exploding");
     expect(scoreTrend({ capturedAt: "now", views: 1000, likes: 100, comments: 10 }).momentumScore).toBeGreaterThanOrEqual(0);
     expect(scoreTrend({ capturedAt: "now", views: 1000, likes: 100, comments: 10 }).momentumScore).toBeLessThanOrEqual(100);
+  });
+
+  it("classifies Shorts with an explicit confidence boundary", () => {
+    expect(classifyShort(45)).toEqual({ isShort: true, shortConfidence: 0.95 });
+    expect(classifyShort(180)).toEqual({ isShort: true, shortConfidence: 0.78 });
+    expect(classifyShort(181).isShort).toBe(false);
   });
 });

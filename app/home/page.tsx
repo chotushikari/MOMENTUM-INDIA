@@ -1,3 +1,10 @@
-import { redirect } from "next/navigation";
+import { ProductShell } from "@/components/product-shell";
+import { HomePage } from "@/components/dashboard";
+import { getPageVideoData } from "@/lib/page-data";
 
-export default function HomeRoute() { redirect("/"); }
+export const dynamic = "force-dynamic";
+
+export default async function HomeRoute() {
+  const data = await getPageVideoData();
+  return <ProductShell><HomePage videos={data.items} sourceMode={data.mode} dataError={data.error} /></ProductShell>;
+}

@@ -6,19 +6,19 @@ import { useState, type ReactNode } from "react";
 import {
   BarChart3,
   Bookmark,
-  BrainCircuit,
   ChevronDown,
   ChevronRight,
-  Clock3,
-  Compass,
-  Gem,
+  CreditCard,
   Home,
+  LayoutGrid,
   LockKeyhole,
   Menu,
+  MessageCircleQuestion,
+  PenLine,
   Search,
   Settings,
-  Sparkles,
   TrendingUp,
+  Volume2,
   X,
 } from "lucide-react";
 import { cityOptions } from "@/lib/demo-data";
@@ -27,20 +27,25 @@ import { getDailyUsage } from "@/lib/entitlements";
 type ProductShellProps = { children: ReactNode };
 
 const discoverLinks = [
-  { href: "/", label: "Home", icon: Home },
+  { href: "/home", label: "Home", icon: Home },
   { href: "/trending", label: "What’s Trending", icon: TrendingUp },
-  { href: "/categories", label: "AI Categories", icon: BrainCircuit },
-  { href: "/search", label: "Search Niche", icon: Search },
+  { href: "/categories", label: "Content Niches", icon: LayoutGrid },
+  { href: "/trending/sounds", label: "Trending Sounds", icon: Volume2 },
 ];
 
-const intelligenceLinks = [
-  { href: "/trending/short-01", label: "Trend Deep Dive", icon: BarChart3 },
-  { href: "/ideas", label: "AI Ideas", icon: Sparkles },
+const createLinks = [
+  { href: "/ideas", label: "Content Assistant", icon: PenLine },
+  { href: "/search", label: "AI Niche Reports", icon: BarChart3 },
+  { href: "/saved", label: "Saved Ideas", icon: Bookmark },
 ];
 
 function NavLink({ href, label, icon: Icon, onNavigate }: { href: string; label: string; icon: typeof Home; onNavigate?: () => void }) {
   const pathname = usePathname();
-  const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
+  const active = href === "/home"
+    ? pathname === "/" || pathname.startsWith("/home")
+    : href === "/trending"
+      ? pathname === "/trending"
+      : pathname.startsWith(href);
   return (
     <Link href={href} onClick={onNavigate} className={`nav-link ${active ? "nav-link-active" : ""}`}>
       <Icon size={16} strokeWidth={active ? 2.1 : 1.7} />
@@ -59,8 +64,8 @@ export function ProductShell({ children }: ProductShellProps) {
     <div className="app-frame">
       <aside className={`sidebar ${mobileOpen ? "sidebar-open" : ""}`}>
         <div className="sidebar-brand">
-          <Link href="/" className="brand-lockup" onClick={() => setMobileOpen(false)}>
-            <span className="brand-mark"><Sparkles size={15} /></span>
+          <Link href="/home" className="brand-lockup" onClick={() => setMobileOpen(false)}>
+            <span className="brand-mark brand-letter">M</span>
             <span>MOMENTUM</span>
           </Link>
           <button className="icon-button sidebar-close" aria-label="Close navigation" title="Close navigation" onClick={() => setMobileOpen(false)}><X size={17} /></button>
@@ -72,22 +77,14 @@ export function ProductShell({ children }: ProductShellProps) {
             {discoverLinks.map((item) => <NavLink key={item.href} {...item} onNavigate={() => setMobileOpen(false)} />)}
           </div>
           <div className="nav-group">
-            <p className="nav-label">Intelligence</p>
-            {intelligenceLinks.map((item) => <NavLink key={item.href} {...item} onNavigate={() => setMobileOpen(false)} />)}
+            <p className="nav-label">Create</p>
+            {createLinks.map((item) => <NavLink key={item.href} {...item} onNavigate={() => setMobileOpen(false)} />)}
           </div>
           <div className="nav-group">
-            <p className="nav-label">Workspace</p>
-            <NavLink href="/saved" label="Saved" icon={Bookmark} onNavigate={() => setMobileOpen(false)} />
-          </div>
-          <div className="nav-group">
-            <p className="nav-label">Coming soon</p>
-            {cityOptions.slice(0, 2).map((city) => (
-              <button key={city} className="nav-link nav-link-locked" onClick={() => setModal("city")}>
-                <LockKeyhole size={15} /><span>{city} intelligence</span><span className="nav-soon">Soon</span>
-              </button>
-            ))}
-            <button className="nav-link nav-link-locked" onClick={() => setModal("upgrade")}><Clock3 size={15} /><span>Historical explorer</span><span className="nav-soon">Pro</span></button>
-            <button className="nav-link nav-link-locked" onClick={() => setModal("upgrade")}><Compass size={15} /><span>Competitor radar</span><span className="nav-soon">Pro</span></button>
+            <p className="nav-label">Account</p>
+            <button className="nav-link" onClick={() => setModal("upgrade")}><MessageCircleQuestion size={15} /><span>Support</span></button>
+            <NavLink href="/settings" label="Settings" icon={Settings} onNavigate={() => setMobileOpen(false)} />
+            <NavLink href="/pricing" label="Pricing" icon={CreditCard} onNavigate={() => setMobileOpen(false)} />
           </div>
         </div>
 
@@ -95,9 +92,9 @@ export function ProductShell({ children }: ProductShellProps) {
           <div className="usage-card">
             <div className="usage-heading"><span>Free plan</span><span>{usage.used} / {usage.limit} trends</span></div>
             <div className="usage-track"><span style={{ width: usagePercent }} /></div>
-            <button className="usage-upgrade" onClick={() => setModal("upgrade")}>Unlock deeper intelligence <ChevronRight size={13} /></button>
+            <button className="usage-upgrade" onClick={() => setModal("upgrade")}>Upgrade plan <ChevronRight size={13} /></button>
           </div>
-          <div className="sidebar-foot-links"><Link href="/settings"><Settings size={14} /> Settings</Link><button onClick={() => setModal("upgrade")}><Gem size={14} /> Upgrade</button></div>
+          <div className="sidebar-foot-links"><span><span className="india-dot" /> India</span><button onClick={() => setModal("upgrade")}><CreditCard size={14} /> Upgrade</button></div>
         </div>
       </aside>
 
@@ -123,7 +120,7 @@ export function ProductShell({ children }: ProductShellProps) {
       </Modal>}
       {modal === "upgrade" && <Modal title="Go deeper than the snapshot" onClose={() => setModal(null)}>
         <p>Creator intelligence, longer trend history, and opportunity signals turn a moment into a repeatable edge.</p>
-        <div className="upgrade-callout"><Gem size={18} /><div><strong>Creator plan</strong><span>Unlimited niche search, AI category explorer, and saved workspace.</span></div></div>
+        <div className="upgrade-callout"><CreditCard size={18} /><div><strong>Creator plan</strong><span>Unlimited niche search, AI category explorer, and saved workspace.</span></div></div>
         <Link href="/pricing" className="primary-button" onClick={() => setModal(null)}>Explore plans <ChevronRight size={15} /></Link>
       </Modal>}
     </div>
