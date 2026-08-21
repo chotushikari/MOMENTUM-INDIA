@@ -9,7 +9,10 @@ export type ShortVideo = {
   category: string;
   topic: string;
   format: string;
+  videoKind?: "Shorts" | "Long";
+  language?: "English" | "Hindi" | "Hinglish" | "Regional" | "Unknown";
   publishedAt: string;
+  rawPublishedAt?: string;
   durationSeconds: number;
   views: number;
   likes: number;
