@@ -15,10 +15,11 @@ export async function GET(request: Request) {
   const category = searchParams.get("category") ?? undefined;
   const signal = searchParams.get("signal") as ShortVideo["label"] | "All signals" | null;
   const query = searchParams.get("q") ?? undefined;
+  const scanner = { sort: sort ?? "Hot", format: format ?? "Shorts", window: window ?? "7d", language: language ?? "All", category: category ?? "All", signal: signal ?? "All signals", taxonomy: "ai-with-rule-fallback" };
   if (mode === "live") {
     if (!isLiveConfigured()) return NextResponse.json({ error: "Live YouTube data is not configured." }, { status: 503 });
     try {
-      return NextResponse.json({ mode, region: "India", format: format ?? "Shorts", updatedAt: new Date().toISOString(), items: await fetchIndiaShorts({ limit, sort: sort ?? "Hot", format: format ?? "Shorts", window: window ?? "7d", language: language ?? "All", category: category ?? "All", signal: signal ?? "All signals", query }) });
+      return NextResponse.json({ mode, region: "India", format: format ?? "Shorts", updatedAt: new Date().toISOString(), scanner, items: await fetchIndiaShorts({ limit, sort: sort ?? "Hot", format: format ?? "Shorts", window: window ?? "7d", language: language ?? "All", category: category ?? "All", signal: signal ?? "All signals", query }) });
     } catch {
       return NextResponse.json({ error: "We couldn't refresh the India signal from YouTube." }, { status: 502 });
     }
@@ -26,9 +27,11 @@ export async function GET(request: Request) {
   const demoItems = sampleVideos.filter((item) => {
     if (format === "Shorts" && (item.videoKind ?? "Shorts") !== "Shorts") return false;
     if (format === "Long" && (item.videoKind ?? "Shorts") !== "Long") return false;
+    if (language && language !== "All" && item.language && item.language !== language) return false;
     if (category && category !== "All" && item.category !== category) return false;
     if (signal && signal !== "All signals" && item.label !== signal) return false;
+    if (query && !`${item.title} ${item.topic} ${item.category} ${item.format}`.toLowerCase().includes(query.toLowerCase())) return false;
     return true;
   });
-  return NextResponse.json({ mode, region: "India", format: format ?? "Shorts", updatedAt: new Date().toISOString(), items: demoItems.slice(0, Math.max(1, limit || sampleVideos.length)) });
+  return NextResponse.json({ mode, region: "India", format: format ?? "Shorts", updatedAt: new Date().toISOString(), scanner, items: demoItems.slice(0, Math.max(1, limit || sampleVideos.length)) });
 }

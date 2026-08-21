@@ -1,5 +1,6 @@
 import type { ShortVideo } from "@/lib/types";
 import { labelForScore } from "@/lib/intelligence/scoring";
+import { generateVideoTaxonomyBatch, isOpenAIConfigured } from "@/lib/openai";
 
 type Thumbnail = { url?: string };
 type VideoItem = {
@@ -24,6 +25,7 @@ export type TrendScanOptions = {
   category?: string;
   signal?: ShortVideo["label"] | "All signals";
   query?: string;
+  enrich?: boolean;
 };
 
 export function classifyShort(durationSeconds: number): ShortClassification {
@@ -64,6 +66,15 @@ const categoryQueries: Record<string, string> = {
   Finance: "finance money business",
 };
 
+const relatedCategoryQueries: Record<string, string> = {
+  Travel: "travel tourism places",
+  "Beauty & Fashion": "beauty fashion style",
+  Sports: "sports cricket football",
+  News: "news current affairs",
+  Devotional: "devotional spiritual bhajan",
+  Other: "viral trending india",
+};
+
 const taxonomy = [
   { category: "Gaming", topic: "Game drops", match: ["gaming", "game", "minecraft", "roblox", "fortnite", "pubg", "cod", "call of duty", "gta", "valorant", "bgmi"] },
   { category: "AI & Tech", topic: "Tools and devices", match: ["ai", "chatgpt", "iphone", "android", "tech", "laptop", "coding", "app", "camera", "phone"] },
@@ -73,6 +84,11 @@ const taxonomy = [
   { category: "Fitness", topic: "Fitness routines", match: ["gym", "workout", "fitness", "weight loss", "exercise", "bodybuilding", "yoga"] },
   { category: "Education", topic: "Learning and explainers", match: ["exam", "study", "learn", "tutorial", "education", "english", "facts", "history", "science"] },
   { category: "Finance", topic: "Money explainers", match: ["money", "finance", "stock", "salary", "business", "tax", "investment", "crypto"] },
+  { category: "Travel", topic: "Travel discoveries", match: ["travel", "tour", "tourist", "place", "city", "trip", "vlog"] },
+  { category: "Beauty & Fashion", topic: "Style and beauty", match: ["makeup", "beauty", "fashion", "outfit", "skincare", "hair", "style"] },
+  { category: "Sports", topic: "Sports moments", match: ["cricket", "football", "sports", "ipl", "match", "goal", "wicket"] },
+  { category: "News", topic: "Current affairs", match: ["news", "breaking", "election", "politics", "update", "report"] },
+  { category: "Devotional", topic: "Devotional content", match: ["bhajan", "devotional", "spiritual", "temple", "krishna", "shiva", "ram", "hanuman"] },
 ];
 
 function inferTaxonomy(title: string, description = "", tags: string[] = []) {
@@ -151,6 +167,7 @@ function normalizeVideo(item: VideoItem): ShortVideo | null {
     category: inferred.category,
     topic: inferred.topic,
     format: inferred.format,
+    taxonomySource: "rules",
     videoKind,
     language: inferLanguage(snippet.title),
     publishedAt: relativePublishedAt(snippet.publishedAt),
@@ -182,6 +199,20 @@ async function fetchVideoDetails(ids: string[], key: string): Promise<ShortVideo
     const normalized = normalizeVideo(item);
     return normalized ? [normalized] : [];
   });
+}
+
+async function enrichTaxonomy(items: ShortVideo[], enabled = true): Promise<ShortVideo[]> {
+  if (!enabled || !isOpenAIConfigured() || !items.length) return items;
+  try {
+    const taxonomyItems = await generateVideoTaxonomyBatch(items);
+    const byId = new Map(taxonomyItems.map((item) => [item.id, item]));
+    return items.map((item) => {
+      const enriched = byId.get(item.id);
+      return enriched ? { ...item, category: enriched.category, topic: enriched.topic, format: enriched.format, categoryReason: enriched.reason, taxonomySource: "ai" } : item;
+    });
+  } catch {
+    return items;
+  }
 }
 
 function applyScanFilters(items: ShortVideo[], options: TrendScanOptions): ShortVideo[] {
@@ -223,7 +254,8 @@ export async function fetchIndiaShorts(options: number | TrendScanOptions = 50):
     if (relevanceLanguage) search.searchParams.set("relevanceLanguage", relevanceLanguage);
     const searchData = await fetchJson<SearchResponse>(search);
     const ids = Array.from(new Set((searchData.items ?? []).map((item) => item.id?.videoId).filter(Boolean) as string[]));
-    return sortScanned(applyScanFilters(await fetchVideoDetails(ids, key), scanOptions), scanOptions.sort).slice(0, maxResults);
+    const enriched = await enrichTaxonomy(await fetchVideoDetails(ids, key), scanOptions.enrich !== false);
+    return sortScanned(applyScanFilters(enriched, scanOptions), scanOptions.sort).slice(0, maxResults);
   }
   const videos = youtubeUrl("videos", key);
   videos.searchParams.set("part", "snippet,contentDetails,statistics");
@@ -233,7 +265,8 @@ export async function fetchIndiaShorts(options: number | TrendScanOptions = 50):
   const videoData = await fetchJson<VideoListResponse>(videos);
 
   const items = (videoData.items ?? []).flatMap((item) => { const normalized = normalizeVideo(item); return normalized ? [normalized] : []; });
-  return sortScanned(applyScanFilters(items, scanOptions), scanOptions.sort).slice(0, maxResults);
+  const enriched = await enrichTaxonomy(items, scanOptions.enrich !== false);
+  return sortScanned(applyScanFilters(enriched, scanOptions), scanOptions.sort).slice(0, maxResults);
 }
 
 export async function fetchIndiaShort(id: string): Promise<ShortVideo | null> {
@@ -243,7 +276,8 @@ export async function fetchIndiaShort(id: string): Promise<ShortVideo | null> {
   videos.searchParams.set("part", "snippet,contentDetails,statistics");
   videos.searchParams.set("id", id);
   const response = await fetchJson<VideoListResponse>(videos);
-  return response.items?.[0] ? normalizeVideo(response.items[0]) : null;
+  const video = response.items?.[0] ? normalizeVideo(response.items[0]) : null;
+  return video ? (await enrichTaxonomy([video]))[0] : null;
 }
 
 export async function fetchRelatedVideos(video: ShortVideo, options: TrendScanOptions = {}): Promise<ShortVideo[]> {
@@ -261,10 +295,10 @@ export async function fetchRelatedVideos(video: ShortVideo, options: TrendScanOp
   if (items.length) return items;
   const titleMatches = (await fetchIndiaShorts({ ...scan, format: "All videos", category: "All", query: words || video.topic })).filter((item) => item.id !== video.id);
   if (titleMatches.length) return titleMatches;
-  return (await fetchIndiaShorts({ ...scan, format: "All videos", category: "All", query: `${video.category} ${video.topic}` })).filter((item) => item.id !== video.id);
+  return (await fetchIndiaShorts({ ...scan, format: "All videos", category: "All", query: `${relatedCategoryQueries[video.category] ?? video.category} ${video.topic}` })).filter((item) => item.id !== video.id);
 }
 
 export async function checkYouTube(): Promise<{ reachable: boolean; itemCount: number; statisticsVerified: boolean; thumbnailsVerified: boolean }> {
-  const items = await fetchIndiaShorts();
+  const items = await fetchIndiaShorts({ enrich: false });
   return { reachable: true, itemCount: items.length, statisticsVerified: items.some((item) => item.views >= 0 && item.likes >= 0 && item.comments >= 0), thumbnailsVerified: items.some((item) => item.thumbnail.startsWith("http")) };
 }

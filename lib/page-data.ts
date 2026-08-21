@@ -14,7 +14,7 @@ export async function getPageVideoData(): Promise<PageVideoData> {
   if (mode === "demo") return { items: sampleVideos, mode };
   if (!isLiveConfigured()) return { items: [], mode, error: "Live YouTube data is not configured." };
   try {
-    return { items: await fetchIndiaShorts(), mode };
+    return { items: await fetchIndiaShorts({ enrich: false }), mode };
   } catch {
     return { items: [], mode, error: "YouTube could not refresh the India signal right now." };
   }

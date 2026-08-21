@@ -9,6 +9,8 @@ export type ShortVideo = {
   category: string;
   topic: string;
   format: string;
+  taxonomySource?: "ai" | "rules";
+  categoryReason?: string;
   videoKind?: "Shorts" | "Long";
   language?: "English" | "Hindi" | "Hinglish" | "Regional" | "Unknown";
   publishedAt: string;
