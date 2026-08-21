@@ -14,6 +14,7 @@ describe("momentum scoring", () => {
 
   it("keeps labels deterministic and bounded", () => {
     expect(labelForScore(87)).toBe("Exploding");
+    expect(labelForScore(42)).toBe("Stable");
     expect(scoreTrend({ capturedAt: "now", views: 1000, likes: 100, comments: 10 }).momentumScore).toBeGreaterThanOrEqual(0);
     expect(scoreTrend({ capturedAt: "now", views: 1000, likes: 100, comments: 10 }).momentumScore).toBeLessThanOrEqual(100);
   });

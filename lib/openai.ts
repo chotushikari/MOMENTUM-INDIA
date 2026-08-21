@@ -2,6 +2,7 @@ import type { ShortVideo } from "@/lib/types";
 
 type ResponsePayload = { output_text?: string; output?: Array<{ content?: Array<{ text?: string }> }> };
 export type GroundedInsight = { why: string; hook: string; format: string; payoff: string };
+export type CreatorIdea = { title: string; rationale: string };
 
 export function isOpenAIConfigured(): boolean { return Boolean(process.env.OPENAI_API_KEY); }
 
@@ -40,4 +41,15 @@ export async function generateGroundedInsight(video: ShortVideo): Promise<Ground
   const format = candidate.format as string;
   const payoff = candidate.payoff as string;
   return { why, hook, format, payoff };
+}
+
+export async function generateCreatorIdeas(video: ShortVideo): Promise<CreatorIdea[]> {
+  const evidence = JSON.stringify({ title: video.title, channel: video.channel, views: video.views, likes: video.likes, comments: video.comments, viewsPerHour: video.viewsPerHour, engagement: video.engagement, category: video.category, topic: video.topic, format: video.format });
+  const payload = await requestOpenAI(`You are MOMENTUM's grounded creator strategist. Use only this observed evidence: ${evidence}. Do not invent metrics, audience behavior, or trend history. Return strict JSON with an ideas array containing exactly three objects, each with a short title and one-sentence rationale. Each idea must adapt the observed format, not copy the source video.`, 260);
+  const text = outputText(payload).replace(/^```json\s*|\s*```$/g, "");
+  const parsed: unknown = JSON.parse(text);
+  if (!parsed || typeof parsed !== "object" || !Array.isArray((parsed as { ideas?: unknown }).ideas)) throw new Error("OpenAI returned an invalid idea shape");
+  const ideas = (parsed as { ideas: unknown[] }).ideas.filter((item): item is CreatorIdea => Boolean(item) && typeof item === "object" && typeof (item as CreatorIdea).title === "string" && typeof (item as CreatorIdea).rationale === "string");
+  if (ideas.length !== 3) throw new Error("OpenAI returned incomplete creator ideas");
+  return ideas;
 }

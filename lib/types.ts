@@ -1,4 +1,4 @@
-export type TrendLabel = "Exploding" | "Rising" | "Emerging" | "Steady";
+export type TrendLabel = "Exploding" | "Rising" | "Emerging" | "Stable" | "Cooling";
 export type SourceMode = "demo" | "live";
 
 export type ShortVideo = {

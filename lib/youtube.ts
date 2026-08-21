@@ -41,6 +41,46 @@ function youtubeUrl(path: string, key: string): URL {
   return url;
 }
 
+function normalizeVideo(item: VideoItem): ShortVideo | null {
+  const id = item.id;
+  const snippet = item.snippet;
+  const duration = parseDuration(item.contentDetails?.duration);
+  const classification = classifyShort(duration);
+  const thumbnail = snippet?.thumbnails?.high?.url ?? snippet?.thumbnails?.medium?.url ?? snippet?.thumbnails?.default?.url;
+  if (!id || !snippet?.title || !snippet.publishedAt || !thumbnail || !classification.isShort) return null;
+  const views = number(item.statistics?.viewCount);
+  const likes = number(item.statistics?.likeCount);
+  const comments = number(item.statistics?.commentCount);
+  const hours = Math.max((Date.now() - Date.parse(snippet.publishedAt)) / 3_600_000, 0.5);
+  const viewsPerHour = Math.round(views / hours);
+  const engagement = views ? Number(((likes + comments) / views * 100).toFixed(2)) : 0;
+  const score = Math.max(0, Math.min(100, Math.round(Math.min(60, Math.log10(Math.max(views, 1)) * 7) + Math.min(40, engagement * 4))));
+  return {
+    id,
+    title: snippet.title,
+    channel: snippet.channelTitle ?? "Unknown channel",
+    thumbnail,
+    category: "India",
+    topic: "Observed Shorts",
+    format: "Short-form video",
+    publishedAt: new Date(snippet.publishedAt).toLocaleDateString("en-IN"),
+    durationSeconds: duration,
+    views,
+    likes,
+    comments,
+    viewsPerHour,
+    engagement,
+    momentumScore: score,
+    velocity: 0,
+    label: labelForScore(score),
+    sourceMode: "live",
+    sourceUrl: `https://www.youtube.com/shorts/${id}`,
+    why: "Live source evidence is available. Interpretation is generated only after a grounded insight request.",
+    isShort: classification.isShort,
+    shortConfidence: classification.shortConfidence,
+  };
+}
+
 export async function fetchIndiaShorts(): Promise<ShortVideo[]> {
   const key = process.env.YOUTUBE_API_KEY;
   if (!key) throw new Error("YOUTUBE_API_KEY is not configured");
@@ -51,45 +91,17 @@ export async function fetchIndiaShorts(): Promise<ShortVideo[]> {
   videos.searchParams.set("maxResults", "50");
   const videoData = await fetchJson<VideoListResponse>(videos);
 
-  return (videoData.items ?? []).flatMap((item) => {
-    const id = item.id;
-    const snippet = item.snippet;
-    const duration = parseDuration(item.contentDetails?.duration);
-    const classification = classifyShort(duration);
-    const thumbnail = snippet?.thumbnails?.high?.url ?? snippet?.thumbnails?.medium?.url ?? snippet?.thumbnails?.default?.url;
-    if (!id || !snippet?.title || !snippet.publishedAt || !thumbnail || !classification.isShort) return [];
-    const views = number(item.statistics?.viewCount);
-    const likes = number(item.statistics?.likeCount);
-    const comments = number(item.statistics?.commentCount);
-    const hours = Math.max((Date.now() - Date.parse(snippet.publishedAt)) / 3_600_000, 0.5);
-    const viewsPerHour = Math.round(views / hours);
-    const engagement = views ? Number(((likes + comments) / views * 100).toFixed(2)) : 0;
-    const score = Math.max(0, Math.min(100, Math.round(Math.min(60, Math.log10(Math.max(views, 1)) * 7) + Math.min(40, engagement * 4))));
-    return [{
-      id,
-      title: snippet.title,
-      channel: snippet.channelTitle ?? "Unknown channel",
-      thumbnail,
-      category: "India",
-      topic: "Observed Shorts",
-      format: "Short-form video",
-      publishedAt: new Date(snippet.publishedAt).toLocaleDateString("en-IN"),
-      durationSeconds: duration,
-      views,
-      likes,
-      comments,
-      viewsPerHour,
-      engagement,
-      momentumScore: score,
-      velocity: 0,
-      label: labelForScore(score),
-      sourceMode: "live",
-      sourceUrl: `https://www.youtube.com/shorts/${id}`,
-      why: "Live source evidence is available. Interpretation is generated only after a grounded insight request.",
-      isShort: classification.isShort,
-      shortConfidence: classification.shortConfidence,
-    }] satisfies ShortVideo[];
-  });
+  return (videoData.items ?? []).flatMap((item) => { const normalized = normalizeVideo(item); return normalized ? [normalized] : []; });
+}
+
+export async function fetchIndiaShort(id: string): Promise<ShortVideo | null> {
+  const key = process.env.YOUTUBE_API_KEY;
+  if (!key) throw new Error("YOUTUBE_API_KEY is not configured");
+  const videos = youtubeUrl("videos", key);
+  videos.searchParams.set("part", "snippet,contentDetails,statistics");
+  videos.searchParams.set("id", id);
+  const response = await fetchJson<VideoListResponse>(videos);
+  return response.items?.[0] ? normalizeVideo(response.items[0]) : null;
 }
 
 export async function checkYouTube(): Promise<{ reachable: boolean; itemCount: number; statisticsVerified: boolean; thumbnailsVerified: boolean }> {

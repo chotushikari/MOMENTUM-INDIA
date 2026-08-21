@@ -17,7 +17,8 @@ export function labelForScore(score: number): TrendScore["label"] {
   if (score >= 80) return "Exploding";
   if (score >= 68) return "Rising";
   if (score >= 55) return "Emerging";
-  return "Steady";
+  if (score >= 38) return "Stable";
+  return "Cooling";
 }
 
 export function scoreTrend(current: VideoSnapshot, previous?: VideoSnapshot): TrendScore {
@@ -26,4 +27,3 @@ export function scoreTrend(current: VideoSnapshot, previous?: VideoSnapshot): Tr
   const momentumScore = Math.max(0, Math.min(100, Math.round(Math.min(60, currentVelocity * 0.45) + Math.min(40, currentEngagement * 4))));
   return { momentumScore, velocity: currentVelocity, engagement: currentEngagement, label: labelForScore(momentumScore) };
 }
-
