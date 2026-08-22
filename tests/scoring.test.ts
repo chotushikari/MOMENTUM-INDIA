@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { engagementRate, labelForScore, scoreTrend, velocity } from "@/lib/intelligence/scoring";
+import { engagementRate, estimateSnapshotMomentum, labelForScore, scoreTrend, velocity } from "@/lib/intelligence/scoring";
 import { classifyShort } from "@/lib/youtube";
 
 describe("momentum scoring", () => {
@@ -23,5 +23,19 @@ describe("momentum scoring", () => {
     expect(classifyShort(45)).toEqual({ isShort: true, shortConfidence: 0.95 });
     expect(classifyShort(180)).toEqual({ isShort: true, shortConfidence: 0.78 });
     expect(classifyShort(181).isShort).toBe(false);
+  });
+
+  it("does not let tiny high-engagement samples outrank strong velocity", () => {
+    const tiny = estimateSnapshotMomentum({ views: 60, likes: 8, comments: 0, ageHours: 2, isShort: true });
+    const strong = estimateSnapshotMomentum({ views: 900_000, likes: 18_000, comments: 900, ageHours: 24, isShort: true });
+    expect(strong.momentumScore).toBeGreaterThan(tiny.momentumScore);
+    expect(tiny.rankConfidence).toBe("Low");
+  });
+
+  it("uses views per hour and reach as the primary live-scan signal", () => {
+    const moving = estimateSnapshotMomentum({ views: 220_000, likes: 8_000, comments: 500, ageHours: 10, isShort: true });
+    expect(moving.viewsPerHour).toBe(22_000);
+    expect(["Emerging", "Rising", "Exploding"]).toContain(moving.label);
+    expect(moving.rankConfidence).not.toBe("Low");
   });
 });

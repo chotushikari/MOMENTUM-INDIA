@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { sampleVideos } from "@/lib/demo-data";
 import { getDataMode, isLiveConfigured } from "@/lib/data-mode";
-import type { ShortVideo } from "@/lib/types";
-import { fetchIndiaShorts } from "@/lib/youtube";
+import type { ShortVideo, TrendScanMeta } from "@/lib/types";
+import { fetchIndiaTrendScan } from "@/lib/youtube";
 
 export async function GET(request: Request) {
   const mode = getDataMode();
@@ -19,7 +19,8 @@ export async function GET(request: Request) {
   if (mode === "live") {
     if (!isLiveConfigured()) return NextResponse.json({ error: "Live YouTube data is not configured." }, { status: 503 });
     try {
-      return NextResponse.json({ mode, region: "India", format: format ?? "Shorts", updatedAt: new Date().toISOString(), scanner, items: await fetchIndiaShorts({ limit, sort: sort ?? "Hot", format: format ?? "Shorts", window: window ?? "7d", language: language ?? "All", category: category ?? "All", signal: signal ?? "All signals", query }) });
+      const scan = await fetchIndiaTrendScan({ limit, sort: sort ?? "Hot", format: format ?? "Shorts", window: window ?? "7d", language: language ?? "All", category: category ?? "All", signal: signal ?? "All signals", query });
+      return NextResponse.json({ mode, region: "India", format: format ?? "Shorts", updatedAt: new Date().toISOString(), scanner, meta: scan.meta, items: scan.items });
     } catch {
       return NextResponse.json({ error: "We couldn't refresh the India signal from YouTube." }, { status: 502 });
     }
@@ -33,5 +34,17 @@ export async function GET(request: Request) {
     if (query && !`${item.title} ${item.topic} ${item.category} ${item.format}`.toLowerCase().includes(query.toLowerCase())) return false;
     return true;
   });
-  return NextResponse.json({ mode, region: "India", format: format ?? "Shorts", updatedAt: new Date().toISOString(), scanner, items: demoItems.slice(0, Math.max(1, limit || sampleVideos.length)) });
+  const requestedLimit = Math.max(1, limit || sampleVideos.length);
+  const returned = demoItems.slice(0, requestedLimit);
+  const meta: TrendScanMeta = {
+    candidatePool: sampleVideos.length,
+    exactMatches: demoItems.length,
+    returned: returned.length,
+    requestedLimit,
+    sourceRequests: 0,
+    matchMode: "exact",
+    effectiveWindow: window ?? "7d",
+    rankingScope: "Ranked within sample fixtures. Demo data is not a live YouTube-wide claim.",
+  };
+  return NextResponse.json({ mode, region: "India", format: format ?? "Shorts", updatedAt: new Date().toISOString(), scanner, meta, items: returned });
 }

@@ -1,5 +1,16 @@
 export type TrendLabel = "Exploding" | "Rising" | "Emerging" | "Stable" | "Cooling";
 export type SourceMode = "demo" | "live";
+export type TrendScanMeta = {
+  candidatePool: number;
+  exactMatches: number;
+  returned: number;
+  requestedLimit: number;
+  sourceRequests: number;
+  matchMode: "exact" | "expanded-window" | "adjacent";
+  effectiveWindow?: "24h" | "3d" | "7d" | "14d";
+  rankingScope: string;
+  note?: string;
+};
 
 export type ShortVideo = {
   id: string;
@@ -22,6 +33,9 @@ export type ShortVideo = {
   viewsPerHour: number;
   engagement: number;
   momentumScore: number;
+  evidenceScore?: number;
+  rankConfidence?: "High" | "Medium" | "Low";
+  rankReason?: string;
   velocity: number;
   label: TrendLabel;
   sourceMode: SourceMode;

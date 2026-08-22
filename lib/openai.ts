@@ -1,7 +1,8 @@
 import type { ShortVideo } from "@/lib/types";
+import { buildCreatorActionPlan, type CreatorActionPlan } from "@/lib/intelligence/creator-engine";
 
 type ResponsePayload = { output_text?: string; output?: Array<{ content?: Array<{ text?: string }> }> };
-export type GroundedInsight = { why: string; hook: string; format: string; payoff: string };
+export type GroundedInsight = { why: string; hook: string; format: string; payoff: string; creatorPlan?: CreatorActionPlan };
 export type CreatorIdea = { title: string; rationale: string };
 export type VideoTaxonomy = { id: string; category: string; topic: string; format: string; reason: string };
 
@@ -37,8 +38,9 @@ export async function checkOpenAI(): Promise<{ reachable: boolean; model: string
 }
 
 export async function generateGroundedInsight(video: ShortVideo): Promise<GroundedInsight> {
-  const evidence = JSON.stringify({ title: video.title, channel: video.channel, views: video.views, likes: video.likes, comments: video.comments, viewsPerHour: video.viewsPerHour, engagement: video.engagement, category: video.category, topic: video.topic, format: video.format });
-  const payload = await requestOpenAI(`You are MOMENTUM's grounded Shorts analyst. Use only this observed evidence: ${evidence}. Do not invent metrics, causes, audience behavior, or trend history. Return strict JSON with exactly four short string fields: why, hook, format, payoff. If evidence is insufficient, say so in why.`, 220);
+  const fallbackPlan = buildCreatorActionPlan(video);
+  const evidence = JSON.stringify({ title: video.title, channel: video.channel, views: video.views, likes: video.likes, comments: video.comments, viewsPerHour: video.viewsPerHour, engagement: video.engagement, momentumScore: video.momentumScore, evidenceScore: video.evidenceScore, rankConfidence: video.rankConfidence, rankReason: video.rankReason, durationSeconds: video.durationSeconds, videoKind: video.videoKind, language: video.language, category: video.category, topic: video.topic, format: video.format });
+  const payload = await requestOpenAI(`You are MOMENTUM's grounded video strategist. Use only this observed evidence: ${evidence}. Do not invent metrics, audience demographics, performance history, location/city data, or claims not present in evidence. Return strict JSON with fields: why, hook, format, payoff, creatorPlan. creatorPlan must include thesis, audience, nicheMechanics array of 3, hook, format, payoff, remakeAngles array of 3, titleFrames array of 4, scriptBeats array of 4, remixScripts array of 3, hashtags array of 6, descriptionDraft, thumbnailDirection, riskChecks array of 3, validationPlan array of 3, postingChecklist array of 4. Make the plan useful for creating a high-performing but original video.`, 1300);
   const text = jsonText(outputText(payload));
   const parsed: unknown = JSON.parse(text);
   if (!parsed || typeof parsed !== "object") throw new Error("OpenAI returned an invalid insight shape");
@@ -48,18 +50,52 @@ export async function generateGroundedInsight(video: ShortVideo): Promise<Ground
   const hook = candidate.hook as string;
   const format = candidate.format as string;
   const payoff = candidate.payoff as string;
-  return { why, hook, format, payoff };
+  return { why, hook, format, payoff, creatorPlan: normalizeCreatorPlan(candidate.creatorPlan, fallbackPlan) };
 }
 
-export async function generateCreatorIdeas(video: ShortVideo): Promise<CreatorIdea[]> {
-  const evidence = JSON.stringify({ title: video.title, channel: video.channel, views: video.views, likes: video.likes, comments: video.comments, viewsPerHour: video.viewsPerHour, engagement: video.engagement, category: video.category, topic: video.topic, format: video.format });
-  const payload = await requestOpenAI(`You are MOMENTUM's grounded creator strategist. Use only this observed evidence: ${evidence}. Do not invent metrics, audience behavior, or trend history. Return strict JSON with an ideas array containing exactly three objects, each with a short title and one-sentence rationale. Each idea must adapt the observed format, not copy the source video.`, 260);
+export async function generateCreatorIdeas(video: ShortVideo, request: { brief?: string; outputMode?: string } = {}): Promise<CreatorIdea[]> {
+  const plan = buildCreatorActionPlan(video);
+  const evidence = JSON.stringify({ title: video.title, channel: video.channel, views: video.views, likes: video.likes, comments: video.comments, viewsPerHour: video.viewsPerHour, engagement: video.engagement, rankConfidence: video.rankConfidence, category: video.category, topic: video.topic, format: video.format, userBrief: request.brief, requestedOutput: request.outputMode, plan });
+  const payload = await requestOpenAI(`You are MOMENTUM's grounded creator strategist. Use only this observed evidence: ${evidence}. Do not invent metrics, audience behavior, or trend history. The user requested ${request.outputMode ?? "Strategy"}. Return strict JSON with an ideas array containing exactly three objects, each with a short title and one-sentence rationale. Each idea must adapt the observed format into an original video concept with a strong hook, clear viewer payoff, and creator-safe execution. If the request is Script, focus on beats and spoken hooks. If Metadata, focus on title/description/hashtag packaging. If Remix, focus on original remixes of the same mechanic. Mention only things supported by the evidence and supplied plan.`, 560);
   const text = jsonText(outputText(payload));
   const parsed: unknown = JSON.parse(text);
   if (!parsed || typeof parsed !== "object" || !Array.isArray((parsed as { ideas?: unknown }).ideas)) throw new Error("OpenAI returned an invalid idea shape");
   const ideas = (parsed as { ideas: unknown[] }).ideas.filter((item): item is CreatorIdea => Boolean(item) && typeof item === "object" && typeof (item as CreatorIdea).title === "string" && typeof (item as CreatorIdea).rationale === "string");
   if (ideas.length !== 3) throw new Error("OpenAI returned incomplete creator ideas");
   return ideas;
+}
+
+function normalizeCreatorPlan(value: unknown, fallback: CreatorActionPlan): CreatorActionPlan {
+  if (!value || typeof value !== "object") return fallback;
+  const candidate = value as Partial<CreatorActionPlan>;
+  return {
+    thesis: stringOr(candidate.thesis, fallback.thesis),
+    audience: stringOr(candidate.audience, fallback.audience),
+    nicheMechanics: stringArrayOr(candidate.nicheMechanics, fallback.nicheMechanics, 3),
+    hook: stringOr(candidate.hook, fallback.hook),
+    format: stringOr(candidate.format, fallback.format),
+    payoff: stringOr(candidate.payoff, fallback.payoff),
+    remakeAngles: stringArrayOr(candidate.remakeAngles, fallback.remakeAngles, 3),
+    titleFrames: stringArrayOr(candidate.titleFrames, fallback.titleFrames, 4),
+    scriptBeats: stringArrayOr(candidate.scriptBeats, fallback.scriptBeats, 4),
+    remixScripts: stringArrayOr(candidate.remixScripts, fallback.remixScripts, 3),
+    hashtags: stringArrayOr(candidate.hashtags, fallback.hashtags, 6),
+    descriptionDraft: stringOr(candidate.descriptionDraft, fallback.descriptionDraft),
+    thumbnailDirection: stringOr(candidate.thumbnailDirection, fallback.thumbnailDirection),
+    riskChecks: stringArrayOr(candidate.riskChecks, fallback.riskChecks, 3),
+    validationPlan: stringArrayOr(candidate.validationPlan, fallback.validationPlan, 3),
+    postingChecklist: stringArrayOr(candidate.postingChecklist, fallback.postingChecklist, 4),
+  };
+}
+
+function stringOr(value: unknown, fallback: string): string {
+  return typeof value === "string" && value.trim() ? value : fallback;
+}
+
+function stringArrayOr(value: unknown, fallback: string[], count: number): string[] {
+  if (!Array.isArray(value)) return fallback;
+  const strings = value.filter((item): item is string => typeof item === "string" && Boolean(item.trim())).slice(0, count);
+  return strings.length === count ? strings : fallback;
 }
 
 export async function generateVideoTaxonomyBatch(videos: ShortVideo[]): Promise<VideoTaxonomy[]> {
