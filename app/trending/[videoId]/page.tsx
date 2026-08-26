@@ -18,7 +18,7 @@ export default async function Page({ params }: { params: Promise<{ videoId: stri
   const { videoId } = await params;
   const demoVideo = getVideo(videoId);
   const video = getDataMode() === "live" && isLiveConfigured() ? await fetchIndiaShort(videoId).catch(() => null) : null;
-  const resolved = video ?? demoVideo;
+  const resolved = video ?? { ...demoVideo, id: videoId };
   const breadcrumbs = breadcrumbJsonLd([
     { name: "MOMENTUM", url: "/" },
     { name: "Trending", url: "/trending" },

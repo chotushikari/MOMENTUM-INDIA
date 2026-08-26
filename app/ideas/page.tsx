@@ -4,6 +4,8 @@ import { IdeasPage } from "@/components/workspaces";
 import { getPageVideoData } from "@/lib/page-data";
 import { getVideo } from "@/lib/demo-data";
 import { buildIdeasMetadata } from "@/lib/seo/metadata";
+import { getDataMode, isLiveConfigured } from "@/lib/data-mode";
+import { fetchIndiaShort } from "@/lib/youtube";
 
 export const dynamic = "force-dynamic";
 
@@ -16,9 +18,16 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
 export default async function Page({ searchParams }: { searchParams: Promise<{ videoId?: string }> }) {
   const params = await searchParams;
   const data = await getPageVideoData();
-  // If a videoId is passed (e.g. from DeepDive "Make this for my channel"), prefer that video
-  const selectedVideo = params.videoId ? getVideo(params.videoId) : null;
-  const video = selectedVideo ?? data.items[0];
+  let video = data.items[0];
+  if (params.videoId) {
+    if (getDataMode() === "live" && isLiveConfigured()) {
+      const liveVideo = await fetchIndiaShort(params.videoId).catch(() => null);
+      if (liveVideo) video = liveVideo;
+      else video = getVideo(params.videoId);
+    } else {
+      video = getVideo(params.videoId);
+    }
+  }
   return (
     <ProductShell>
       <IdeasPage video={video} sourceMode={data.mode} preselectedVideoId={params.videoId} />

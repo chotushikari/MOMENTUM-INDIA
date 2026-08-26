@@ -303,13 +303,29 @@ export function IdeasPage({ video = sampleVideos[0], sourceMode = "demo", presel
         <div className="assistant-promise"><Activity size={14} /><span>Output is grounded in source metrics, category, duration, topic, and the selected request.</span></div>
       </section>
       <section className="generated-ideas creator-output-stage">
-        {loading ? <IdeasSkeleton /> : generated ? <><div className="section-heading"><div><p className="eyebrow">Grounded output / {outputMode}</p><h2>Angles, mechanics, packaging, and checks</h2></div><span className="sample-label">{ideas.length ? "Generated from evidence" : "No output"}</span></div>
+        {loading ? <IdeasSkeleton /> : generated ? <><div className="section-heading"><div><p className="eyebrow">GROUNDED CONTENT ENGINE / {outputMode}</p><h2>Hooks, Script Beats, Remix Angles & Brief</h2></div><button className="primary-button" onClick={copyBrief}>{copied ? "Copied! ✦" : "Copy Full Script Brief 📋"}</button></div>
           <div className="assistant-scorecard panel-surface"><div><span>Make-or-skip read</span><strong>{opportunity.score}/100</strong></div><p>{opportunity.why.join(" ")}</p></div>
+          
+          {/* Hook Engine: 5 Hook Formulas */}
+          <div className="creator-output-panel panel-surface" style={{ marginBottom: "16px" }}>
+            <strong>🪝 HOOK ENGINE (5 Opening Formulas)</strong>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "10px", marginTop: "10px" }}>
+              {buildHookEngine(video).formulas.map((h) => (
+                <div key={h.type} style={{ background: "var(--surface-raised)", border: "1px solid var(--border-soft)", borderRadius: "6px", padding: "10px" }}>
+                  <span style={{ fontSize: "10px", color: "var(--accent)", fontWeight: 700, display: "block" }}>{h.type.toUpperCase()} HOOK</span>
+                  <strong style={{ fontSize: "12px", color: "var(--text)", display: "block", margin: "4px 0" }}>{h.openingLine}</strong>
+                  <small style={{ fontSize: "10px", color: "var(--text-subtle)", display: "block" }}>{h.why}</small>
+                </div>
+              ))}
+            </div>
+          </div>
+
           <div className="idea-stack">{ideas.map((idea, index) => <IdeaCard key={idea.title} number={String(index + 1).padStart(2, "0")} title={idea.title} text={idea.rationale} tag="Evidence-backed direction" />)}</div>
+          
           <div className="creator-output-panel panel-surface">
             <PlanBlock title="Niche mechanics" items={plan.nicheMechanics} />
-            <PlanBlock title="Script beats" items={plan.scriptBeats} />
-            <PlanBlock title="Remix scripts" items={plan.remixScripts} />
+            <PlanBlock title="Script beats (Timestamped)" items={plan.scriptBeats} />
+            <PlanBlock title="Remix angles (Original creation)" items={plan.remakeAngles} />
             <PlanBlock title="Validation checks" items={plan.validationPlan} />
           </div>
           <div className="creator-packaging-grid">
