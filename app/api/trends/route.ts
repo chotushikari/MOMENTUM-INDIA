@@ -20,10 +20,17 @@ export async function GET(request: Request) {
     if (!isLiveConfigured()) return NextResponse.json({ error: "Live YouTube data is not configured." }, { status: 503 });
     try {
       const scan = await fetchIndiaTrendScan({ limit, sort: sort ?? "Hot", format: format ?? "Shorts", window: window ?? "7d", language: language ?? "All", category: category ?? "All", signal: signal ?? "All signals", query });
-      return NextResponse.json({ mode, region: "India", format: format ?? "Shorts", updatedAt: new Date().toISOString(), scanner, meta: scan.meta, items: scan.items });
-    } catch {
-      return NextResponse.json({ error: "We couldn't refresh the India signal from YouTube." }, { status: 502 });
+      if (scan.items.length) {
+        return NextResponse.json({ mode, region: "India", format: format ?? "Shorts", updatedAt: new Date().toISOString(), scanner, meta: scan.meta, items: scan.items });
+      }
+    } catch (e) {
+      console.warn("Live YouTube trend scan failed, falling back to candidate pool", e);
     }
+    const fallbackItems = sampleVideos.filter((item) => {
+      if (query && !`${item.title} ${item.topic} ${item.category} ${item.format}`.toLowerCase().includes(query.toLowerCase())) return false;
+      return true;
+    });
+    return NextResponse.json({ mode: "demo", region: "India", format: format ?? "Shorts", updatedAt: new Date().toISOString(), scanner, meta: { returned: fallbackItems.length, fallback: true }, items: fallbackItems.length ? fallbackItems : sampleVideos.slice(0, limit) });
   }
   const demoItems = sampleVideos.filter((item) => {
     if (format === "Shorts" && (item.videoKind ?? "Shorts") !== "Shorts") return false;

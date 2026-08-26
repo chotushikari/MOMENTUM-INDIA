@@ -28,33 +28,32 @@ export function SearchPage({ initialQuery, initialItems = sampleVideos, sourceMo
     setPrevInitialQuery(initialQuery);
     setQuery(initialQuery);
     setSubmitted(initialQuery);
+    if (initialQuery.trim()) setSearching(true);
   }
 
   useEffect(() => {
-    if (!submitted.trim()) return;
-    let active = true;
-    if (sourceMode === "live") {
-      fetch(`/api/trends?q=${encodeURIComponent(submitted.trim())}&limit=20`)
-        .then((res) => (res.ok ? res.json() as Promise<{ items?: ShortVideo[] }> : Promise.reject()))
-        .then((payload) => {
-          if (active) setLiveItems(payload.items ?? []);
-        })
-        .catch(() => {
-          if (active) setLiveItems([]);
-        })
-        .finally(() => {
-          if (active) setSearching(false);
-        });
-    } else {
-      const timer = window.setTimeout(() => {
-        if (active) setSearching(false);
-      }, 150);
-      return () => window.clearTimeout(timer);
+    if (!submitted.trim()) {
+      setLiveItems(null);
+      setSearching(false);
+      return;
     }
+    let active = true;
+    setSearching(true);
+    fetch(`/api/trends?q=${encodeURIComponent(submitted.trim())}&limit=20`)
+      .then((res) => (res.ok ? res.json() as Promise<{ items?: ShortVideo[] }> : Promise.reject()))
+      .then((payload) => {
+        if (active) setLiveItems(payload.items ?? []);
+      })
+      .catch(() => {
+        if (active) setLiveItems([]);
+      })
+      .finally(() => {
+        if (active) setSearching(false);
+      });
     return () => {
       active = false;
     };
-  }, [submitted, sourceMode]);
+  }, [submitted]);
 
   function handleSearchSubmit(term: string) {
     const trimmed = term.trim();
@@ -64,12 +63,15 @@ export function SearchPage({ initialQuery, initialItems = sampleVideos, sourceMo
   }
 
   const pool = liveItems ?? initialItems;
-  const results = useMemo(
-    () => (submitted ? pool.filter((video) => `${video.title} ${video.topic} ${video.category} ${video.channel} ${video.format}`.toLowerCase().includes(submitted.toLowerCase())) : []),
-    [pool, submitted]
-  );
+  const results = useMemo(() => {
+    if (!submitted.trim()) return [];
+    if (liveItems !== null && liveItems.length > 0) return liveItems;
+    const lower = submitted.toLowerCase();
+    return pool.filter((video) => `${video.title} ${video.topic} ${video.category} ${video.channel} ${video.format} ${video.why}`.toLowerCase().includes(lower));
+  }, [pool, liveItems, submitted]);
+
   const adjacent = pool.filter((video) => !results.some((result) => result.id === video.id)).slice(0, Math.max(0, 4 - results.length));
-  const visible = submitted ? (results.length ? results.slice(0, 8) : adjacent.slice(0, 4)) : [];
+  const visible = submitted.trim() ? (results.length ? results : adjacent) : [];
   const avgMomentum = visible.length ? Math.round(visible.reduce((total, video) => total + video.momentumScore, 0) / visible.length) : 0;
   const topTopics = Array.from(new Set(visible.flatMap((video) => [video.topic, video.format, video.category]))).slice(0, 5);
 
