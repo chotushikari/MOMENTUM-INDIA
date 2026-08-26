@@ -243,20 +243,64 @@ function TrendingScanner({ videos, sourceMode, dataError, initialControls, initi
       setLoadingMore(false);
     }
   }
-  return <><section className="trend-workspace-heading"><div><p className="eyebrow">DISCOVER / INDIA / {sourceMode === "live" ? "OBSERVED" : "DEMO MODE"}</p><h1>What&apos;s Trending</h1><p>Every selected filter creates a retrieval plan, enriches the candidate pool, then applies format, taxonomy, language, and signal filters locally.</p></div><div className="trend-heading-actions"><button className="primary-button scan-button" onClick={() => setScanNonce((value) => value + 1)} disabled={scanning}><RefreshCw size={14} className={scanning ? "spin" : ""} /> {scanning ? "Scanning" : "Scan again"}</button><Link href="/search" className="quiet-button"><Search size={14} /> Search niche</Link></div></section>
-  <div className="product-loop-banner">
-    <div className="loop-step loop-step-active"><span className="loop-num">1</span><div><strong>DISCOVER</strong><small>Scan emerging signals</small></div></div>
-    <span className="loop-sep">→</span>
-    <div className="loop-step"><span className="loop-num">2</span><div><strong>UNDERSTAND</strong><small>Deconstruct viral pattern</small></div></div>
-    <span className="loop-sep">→</span>
-    <div className="loop-step"><span className="loop-num">3</span><div><strong>ACT</strong><small>Generate original script</small></div></div>
-    <span className="loop-tag">REDUCE GUESSWORK</span>
+  return <><section className="trend-workspace-heading"><div><p className="eyebrow">MOMENTUM INTELLIGENCE PIPELINE / {sourceMode === "live" ? "LIVE SOURCE" : "DEMO MODE"}</p><h1>What Should I Make Next?</h1><p>Define creator context, scan emerging attention velocity, prove the signal, decode the viral pattern, and generate an original script.</p></div><div className="trend-heading-actions"><button className="primary-button scan-button" onClick={() => setScanNonce((value) => value + 1)} disabled={scanning}><RefreshCw size={14} className={scanning ? "spin" : ""} /> {scanning ? "SCAN OPPORTUNITIES ⚡" : "Scan again"}</button><Link href="/search" className="quiet-button"><Search size={14} /> Search niche</Link></div></section>
+
+  {/* Interactive 5-Stage Creator Workflow Header */}
+  <div className="workflow-stepper-container">
+    <div className="workflow-stepper-header">
+      <span className="eyebrow">CREATOR WORKFLOW</span>
+      <strong>SIGNAL → PATTERN → OPPORTUNITY → ACTION</strong>
+    </div>
+    <div className="workflow-stepper-grid">
+      <div className="workflow-step workflow-step-active">
+        <span className="step-num">1</span>
+        <div className="step-body">
+          <strong>CONTEXT</strong>
+          <small>Niche · Audience · Region</small>
+        </div>
+      </div>
+      <span className="step-arrow">→</span>
+      <div className="workflow-step">
+        <span className="step-num">2</span>
+        <div className="step-body">
+          <strong>DISCOVER</strong>
+          <small>Emerging · Rising · Breakouts</small>
+        </div>
+      </div>
+      <span className="step-arrow">→</span>
+      <div className="workflow-step">
+        <span className="step-num">3</span>
+        <div className="step-body">
+          <strong>PROVE SIGNAL</strong>
+          <small>Velocity · Engagement · Recency</small>
+        </div>
+      </div>
+      <span className="step-arrow">→</span>
+      <div className="workflow-step">
+        <span className="step-num">4</span>
+        <div className="step-body">
+          <strong>DECODE PATTERN</strong>
+          <small>Hook · Format · Emotion</small>
+        </div>
+      </div>
+      <span className="step-arrow">→</span>
+      <div className="workflow-step">
+        <span className="step-num">5</span>
+        <div className="step-body">
+          <strong>GENERATE CONCEPT</strong>
+          <small>Hook · Remix Idea · Beats</small>
+        </div>
+      </div>
+    </div>
   </div>
+
+  {/* Quick Preset Scan Selectors */}
   <div className="preset-quick-scans">
-    <span>Preset Quick Scans:</span>
-    <button type="button" onClick={() => setControls((c) => ({ ...c, category: "AI & Tech", window: "24h", query: "AI agents" }))}>⚡ AI Agents (24h)</button>
-    <button type="button" onClick={() => setControls((c) => ({ ...c, category: "Food", window: "24h", query: "street food" }))}>⚡ Street Food (24h)</button>
-    <button type="button" onClick={() => setControls((c) => ({ ...c, category: "Fitness", window: "24h", query: "desk workout" }))}>⚡ Desk Workout (24h)</button>
+    <span>Quick Niche Scans:</span>
+    <button type="button" className={controls.category === "AI & Tech" ? "preset-active" : ""} onClick={() => setControls((c) => ({ ...c, category: "AI & Tech", window: "24h", query: "AI agents" }))}>⚡ AI Agents (24h)</button>
+    <button type="button" className={controls.category === "Food" ? "preset-active" : ""} onClick={() => setControls((c) => ({ ...c, category: "Food", window: "24h", query: "street food" }))}>⚡ Street Food (24h)</button>
+    <button type="button" className={controls.category === "Fitness" ? "preset-active" : ""} onClick={() => setControls((c) => ({ ...c, category: "Fitness", window: "24h", query: "desk workout" }))}>⚡ Desk Workout (24h)</button>
+    <button type="button" className={controls.category === "Finance" ? "preset-active" : ""} onClick={() => setControls((c) => ({ ...c, category: "Finance", window: "24h", query: "salary breakdown" }))}>⚡ Salary Breakdown (24h)</button>
   </div>
   <SourceTabs /><TrendControls state={controls} onChange={(next) => setControls((current) => ({ ...current, ...next, visibleCount: next.visibleCount ?? 10 }))} /><div className="filter-bar secondary-filters">{signalFilters.map((item) => <button key={item} onClick={() => setFilter(item)} className={filter === item ? "filter-active" : ""}>{item}</button>)}</div>{dataError && <div className="provider-error" role="status"><span>Source unavailable</span><strong>{dataError}</strong><Link href="/settings">Check configuration <ChevronRight size={13} /></Link></div>}<div className="workspace-results"><div><span className={scanning ? "scan-dot is-scanning" : "green-dot"} /> {scanning ? "Scanning YouTube..." : scanResultSummary(filtered.length, items.length, scanMeta)} <span>/</span> {sourceMode === "live" ? `Filters: ${activeScanSummary(controls, filter, scanMeta)}` : "Sample fixture"} <span>/</span> {scanMeta?.rankingMethod ?? "Momentum ranking within analyzed candidates"}</div><div className="sample-label">{scanMeta?.coverageConfidence ? `${scanMeta.coverageConfidence.toUpperCase()} COVERAGE` : `YOUTUBE ${controls.format === "All videos" ? "VIDEOS" : controls.format.toUpperCase()}`}</div></div>{scanMeta && <div className="coverage-strip" aria-label="Discovery coverage"><span><strong>{scanMeta.retrievedCount ?? scanMeta.candidatePool}</strong> retrieved</span><span><strong>{scanMeta.enrichedCount ?? scanMeta.candidatePool}</strong> enriched</span><span><strong>{scanMeta.matchedCount ?? scanMeta.exactMatches}</strong> matched</span><span><strong>{scanMeta.shownCount ?? scanMeta.returned}</strong> shown</span>{scanMeta.cacheHit && <span className="cache-hit-pill">cache hit</span>}</div>}{scanMeta?.note && <div className="scan-note" role="status">{scanMeta.note}</div>}
 {scanning ? (
@@ -415,9 +459,9 @@ export function ShortCard({ video, rank, saved, onSave }: { video: ShortVideo; r
         {tags.map((tag) => <span key={tag}>{tag}</span>)}
       </div>
       <div className="short-actions">
-        <button onClick={toggleSave}><Bookmark size={12} fill={isSaved ? "currentColor" : "none"} /> {isSaved ? "Saved" : "Save"}</button>
+        <Link href={`/trending/${video.id}`} className="card-decode-button">Decode Pattern →</Link>
+        <button onClick={toggleSave} aria-label={isSaved ? "Saved" : "Save"} title={isSaved ? "Saved" : "Save"}><Bookmark size={12} fill={isSaved ? "currentColor" : "none"} /> {isSaved ? "Saved" : "Save"}</button>
         <a href={video.sourceUrl} target="_blank" rel="noreferrer"><ExternalLink size={12} /> YouTube</a>
-        <Link href={`/trending/${video.id}`}>Details <ChevronRight size={12} /></Link>
       </div>
     </div>
   </article>;
