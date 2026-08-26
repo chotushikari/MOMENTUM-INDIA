@@ -142,7 +142,7 @@ export function SearchPage({ initialQuery, initialItems = sampleVideos, sourceMo
 }
 
 export function DeepDivePage({ video }: { video: ShortVideo }) {
-  const [tab, setTab] = useState<"why" | "dna" | "ideas" | "hub">("why");
+  const [tab, setTab] = useState<"hub" | "why" | "dna" | "ideas">("hub");
   const savedIds = JSON.parse(useSyncExternalStore(subscribeToSaved, savedSnapshot, savedServerSnapshot)) as string[];
   const isSaved = savedIds.includes(video.id);
   const [insight, setInsight] = useState<GroundedInsight | null>(video.sourceMode === "demo" ? demoInsight(video) : null);
@@ -221,11 +221,16 @@ export function IdeasPage({ video = sampleVideos[0], sourceMode = "demo", presel
   const [brief, setBrief] = useState(defaultBrief);
   const [outputMode, setOutputMode] = useState<CreatorOutputMode>("Explore");
   const [profile, setProfile] = useState<CreatorProfile>(defaultCreatorProfile);
-  const [generated, setGenerated] = useState(false);
+  const [generated, setGenerated] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
-  const [ideas, setIdeas] = useState<{ title: string; rationale: string }[]>([]);
-  const [plan, setPlan] = useState<CreatorActionPlan>(buildCreatorActionPlan(video, defaultCreatorProfile));
+  const initialPlan = buildCreatorActionPlan(video, defaultCreatorProfile);
+  const [plan, setPlan] = useState<CreatorActionPlan>(initialPlan);
+  const [ideas, setIdeas] = useState<{ title: string; rationale: string }[]>([
+    { title: "Hook / 0-3s Opening", rationale: `${initialPlan.scriptBeats[0]} Spoken line: "${initialPlan.titleFrames[0]}"` },
+    { title: "Setup / 3-8s Premise", rationale: initialPlan.scriptBeats[1] },
+    { title: "Payoff & Action CTA", rationale: `${initialPlan.scriptBeats[3]} Remix angle: ${initialPlan.remakeAngles[0]}` },
+  ]);
   const opportunity = buildContentOpportunity(video, profile);
   const depthActions: { label: string; mode: CreatorOutputMode; prompt: string }[] = [
     { label: "Analyze deeper", mode: "Explore", prompt: "Explain the opportunity, risks, and validation steps." },
