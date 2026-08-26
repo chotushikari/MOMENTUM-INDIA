@@ -1,5 +1,6 @@
 import type { ShortVideo } from "@/lib/types";
-import { buildCreatorActionPlan, type CreatorActionPlan } from "@/lib/intelligence/creator-engine";
+import { buildCreatorActionPlan, type CreatorActionPlan, type CreatorOutputMode } from "@/lib/intelligence/creator-engine";
+import type { CreatorProfile } from "@/lib/intelligence/opportunity-engine";
 
 type ResponsePayload = { output_text?: string; output?: Array<{ content?: Array<{ text?: string }> }> };
 export type GroundedInsight = { why: string; hook: string; format: string; payoff: string; creatorPlan?: CreatorActionPlan };
@@ -53,10 +54,10 @@ export async function generateGroundedInsight(video: ShortVideo): Promise<Ground
   return { why, hook, format, payoff, creatorPlan: normalizeCreatorPlan(candidate.creatorPlan, fallbackPlan) };
 }
 
-export async function generateCreatorIdeas(video: ShortVideo, request: { brief?: string; outputMode?: string } = {}): Promise<CreatorIdea[]> {
-  const plan = buildCreatorActionPlan(video);
-  const evidence = JSON.stringify({ title: video.title, channel: video.channel, views: video.views, likes: video.likes, comments: video.comments, viewsPerHour: video.viewsPerHour, engagement: video.engagement, rankConfidence: video.rankConfidence, category: video.category, topic: video.topic, format: video.format, userBrief: request.brief, requestedOutput: request.outputMode, plan });
-  const payload = await requestOpenAI(`You are MOMENTUM's grounded creator strategist. Use only this observed evidence: ${evidence}. Do not invent metrics, audience behavior, or trend history. The user requested ${request.outputMode ?? "Strategy"}. Return strict JSON with an ideas array containing exactly three objects, each with a short title and one-sentence rationale. Each idea must adapt the observed format into an original video concept with a strong hook, clear viewer payoff, and creator-safe execution. If the request is Script, focus on beats and spoken hooks. If Metadata, focus on title/description/hashtag packaging. If Remix, focus on original remixes of the same mechanic. Mention only things supported by the evidence and supplied plan.`, 560);
+export async function generateCreatorIdeas(video: ShortVideo, request: { brief?: string; outputMode?: CreatorOutputMode; profile?: CreatorProfile } = {}): Promise<CreatorIdea[]> {
+  const plan = buildCreatorActionPlan(video, request.profile);
+  const evidence = JSON.stringify({ title: video.title, channel: video.channel, views: video.views, likes: video.likes, comments: video.comments, viewsPerHour: video.viewsPerHour, engagement: video.engagement, rankConfidence: video.rankConfidence, category: video.category, topic: video.topic, format: video.format, userBrief: request.brief, requestedOutput: request.outputMode, creatorProfile: request.profile, plan });
+  const payload = await requestOpenAI(`You are MOMENTUM's grounded creator strategist. Use only this observed evidence: ${evidence}. Do not invent metrics, audience behavior, comments, transcript details, visual analysis, trend history, or guaranteed virality. The user requested ${request.outputMode ?? "Explore"}. Return strict JSON with an ideas array containing exactly three objects, each with a short title and one-sentence rationale. Explore should identify opportunity and validation. Plan should offer distinct concepts with why, difficulty, and risk. Write should focus on hook, setup, payoff, spoken words, and visual direction. Optimize should focus on title, caption, description, pinned comment, CTA, and hashtag roles without generic spam tags. Review should use KEEP, CHANGE, REMOVE style critique. Every item must adapt the observed mechanic into an original execution and mention only things supported by the evidence and supplied plan.`, 760);
   const text = jsonText(outputText(payload));
   const parsed: unknown = JSON.parse(text);
   if (!parsed || typeof parsed !== "object" || !Array.isArray((parsed as { ideas?: unknown }).ideas)) throw new Error("OpenAI returned an invalid idea shape");

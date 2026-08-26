@@ -4,10 +4,11 @@ import Link from "next/link";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { Activity, BarChart3, Bookmark, ChevronDown, ChevronRight, ExternalLink, Eye, Grid2X2, Heart, List, LockKeyhole, MessageCircle, Music2, Play, RefreshCw, Search, Sparkles, Tag, Video, Zap } from "lucide-react";
+import { Activity, BarChart3, Bookmark, ChevronDown, ChevronRight, ExternalLink, Eye, Grid2X2, Heart, List, LockKeyhole, MessageCircle, Music2, Play, RefreshCw, Search, Tag, Video, Zap } from "lucide-react";
 import { categories, sampleVideos } from "@/lib/demo-data";
-import { savedServerSnapshot, savedSnapshot, subscribeToSaved, writeSavedIds } from "@/lib/saved";
+import { savedServerSnapshot, savedSnapshot, subscribeToSaved, toggleSavedVideo } from "@/lib/saved";
 import type { ShortVideo, SourceMode, TrendScanMeta } from "@/lib/types";
+import { ShortCardGridSkeleton, ShortListViewSkeleton } from "@/components/skeletons";
 
 type TrendControlsState = {
   sort: "Hot" | "Popular" | "Latest";
@@ -28,29 +29,31 @@ const categoryFilters = ["All", "Gaming", "AI & Tech", "Entertainment", "Music",
 export function LandingPage({ videos = sampleVideos, sourceMode = "demo", dataError }: { videos?: ShortVideo[]; sourceMode?: SourceMode; dataError?: string }) {
   const topVideo = videos[0] ?? sampleVideos[0];
   const secondVideo = videos[1] ?? sampleVideos[1] ?? topVideo;
+  const thirdVideo = videos[2] ?? sampleVideos[2] ?? topVideo;
   const proof = [
-    { label: "Source data", value: sourceMode === "live" ? `${videos.length}` : "Demo", note: sourceMode === "live" ? "retrieved candidates" : "sample fixture" },
-    { label: "Ranking", value: "Scoped", note: "never YouTube-wide claims" },
-    { label: "Creator output", value: "Action", note: "scripts, metadata, remix angles" },
+    { label: "Discovery", value: sourceMode === "live" ? `${videos.length}` : "Demo", note: sourceMode === "live" ? "current analyzed sample" : "sample fixture" },
+    { label: "Signal", value: compact(topVideo.viewsPerHour), note: "views per hour, not just views" },
+    { label: "Trust", value: "Scoped", note: "ranked from candidates analyzed" },
   ];
   return <main className="marketing-page">
     <nav className="marketing-nav" aria-label="MOMENTUM marketing navigation">
       <Link href="/" className="brand-lockup"><span className="brand-mark brand-letter">M</span><span>MOMENTUM</span></Link>
       <div>
-        <Link href="/trending">Live trends</Link>
+        <Link href="/trending">What&apos;s moving</Link>
         <Link href="/categories">Niches</Link>
+        <Link href="/methodology">Methodology</Link>
         <Link href="/pricing">Pricing</Link>
       </div>
-      <Link href="/home" className="primary-button">Open app <ChevronRight size={14} /></Link>
+      <Link href="/home" className="primary-button">Explore what&apos;s moving <ChevronRight size={14} /></Link>
     </nav>
     <section className="marketing-hero">
       <div className="marketing-copy">
-        <p className="eyebrow"><span className="scan-dot" /> Creator intelligence from live YouTube evidence</p>
-        <h1>Know what to make before the trend gets crowded.</h1>
-        <p>MOMENTUM scans public YouTube candidates, separates Shorts from Long videos, ranks them by velocity and confidence, then turns each signal into a grounded creator brief for your next upload.</p>
+        <p className="eyebrow"><span className="scan-dot" /> YouTube Shorts intelligence for India</p>
+        <h1>Know what&apos;s moving before it&apos;s obvious.</h1>
+        <p>MOMENTUM turns short-form signals into intelligence for creators and teams. Find what is moving, understand why it is moving, decide if it matters to you, then make something better.</p>
         <div className="hero-actions">
-          <Link href="/home" className="primary-button">Start in workspace <ChevronRight size={14} /></Link>
-          <Link href={liveTrendHref()} className="quiet-button">View live feed</Link>
+          <Link href="/home" className="primary-button">Explore what&apos;s moving <ChevronRight size={14} /></Link>
+          <Link href="/methodology" className="quiet-button">See how MOMENTUM works</Link>
         </div>
         <div className="marketing-proof">{proof.map((item) => <div key={item.label}><span>{item.label}</span><strong>{item.value}</strong><small>{item.note}</small></div>)}</div>
       </div>
@@ -62,40 +65,75 @@ export function LandingPage({ videos = sampleVideos, sourceMode = "demo", dataEr
           <div><strong>{topVideo.title}</strong><small>{topVideo.channel} / {compact(topVideo.viewsPerHour)} views per hour</small></div>
         </Link>
         <div className="live-stack">
-          <Link href={liveTrendHref({ category: topVideo.category, query: topVideo.topic })}><Sparkles size={14} /><span>Scan similar</span><strong>{topVideo.category}</strong></Link>
+          <Link href={liveTrendHref({ category: topVideo.category, query: topVideo.topic })}><Search size={14} /><span>Scan similar</span><strong>{topVideo.category}</strong></Link>
           <Link href={liveTrendHref({ category: secondVideo.category, query: secondVideo.topic })}><BarChart3 size={14} /><span>Open niche</span><strong>{secondVideo.topic}</strong></Link>
         </div>
       </div>
     </section>
     {dataError && <div className="provider-error landing-error" role="status"><span>Source unavailable</span><strong>{dataError}</strong><Link href="/settings">Check configuration <ChevronRight size={13} /></Link></div>}
-    <section className="marketing-section">
-      <SectionHeading eyebrow="What MOMENTUM is" title="A creator decision engine, not a generic trend list" />
-      <div className="marketing-workflow">{[
-        ["Retrieve", "Every selected filter calls YouTube again and records the candidate pool it could actually inspect."],
-        ["Score", "Momentum blends views/hour, reach, freshness, engagement, and evidence confidence."],
-        ["Explain", "Observed source fields stay separate from AI interpretation so creators know what is fact."],
-        ["Create", "Ask for strategy, scripts, titles, hashtags, descriptions, or remix angles when you need them."],
-      ].map(([title, text], index) => <article key={title}><span>{String(index + 1).padStart(2, "0")}</span><h2>{title}</h2><p>{text}</p></article>)}</div>
+    <section className="marketing-section problem-section">
+      <div className="problem-copy">
+        <p className="eyebrow">The problem</p>
+        <h2>By the time everyone sees a trend, it is already crowded.</h2>
+        <p>YouTube shows popularity. MOMENTUM looks for movement inside the public candidates it can retrieve and enrich. Views tell you what happened. Momentum tells you what is changing.</p>
+      </div>
+      <div className="signal-example panel-surface">
+        <div><span>Popular read</span><strong>{compact(topVideo.views)}</strong><small>total views</small></div>
+        <ChevronRight size={18} />
+        <div><span>Momentum read</span><strong>{compact(topVideo.viewsPerHour)}/h</strong><small>{topVideo.label.toLowerCase()} signal</small></div>
+        <p>The second number is the useful one. It tells a creator whether a signal deserves attention now.</p>
+      </div>
     </section>
     <section className="marketing-section">
-      <SectionHeading eyebrow="Why creators use it" title="The useful layer after discovery" />
+      <SectionHeading eyebrow="Product flow" title="Discover, understand, decide, create" />
+      <div className="marketing-workflow">{[
+        ["Discover", "Find top MOMENTUM signals from the candidates analyzed."],
+        ["Understand", "Open the video intelligence report and see hook, format, topic, lifecycle, and confidence."],
+        ["Decide", "Score whether the opportunity fits your channel, audience, language, and timing."],
+        ["Create", "Build concepts, hooks, scripts, captions, hashtags, and shot lists only when requested."],
+      ].map(([title, text], index) => <article key={title}><span>{String(index + 1).padStart(2, "0")}</span><h2>{title}</h2><p>{text}</p></article>)}</div>
+    </section>
+    <section className="marketing-section product-preview-section">
+      <SectionHeading eyebrow="Product screens" title="The app is the proof" />
+      <div className="product-preview-grid">
+        <Link href={liveTrendHref()}><span>Trending</span><strong>{topVideo.category}</strong><small>{compact(topVideo.viewsPerHour)} views/hour</small></Link>
+        <Link href={`/trending/${topVideo.id}`}><span>Video intelligence</span><strong>{topVideo.label}</strong><small>{topVideo.format}</small></Link>
+        <Link href={liveTrendHref({ category: secondVideo.category })}><span>Niche intelligence</span><strong>{secondVideo.category}</strong><small>{secondVideo.topic}</small></Link>
+        <Link href="/ideas"><span>Content Assistant</span><strong>Make this useful</strong><small>Channel-aware creator plan</small></Link>
+      </div>
+    </section>
+    <section className="marketing-section">
+      <SectionHeading eyebrow="Built for" title="Creators first, teams next" />
       <div className="marketing-workflow marketing-use-grid">{[
-        ["Find the angle", "See the hook, format, payoff, and topic mechanics behind a signal."],
-        ["Make it yours", "Translate the same viral pattern into your niche without copying the source."],
-        ["Package faster", "Generate titles, descriptions, hashtags, thumbnail direction, and posting checks."],
-        ["Stay honest", "Thin data is labeled low confidence. Empty scans stay empty unless clearly expanded."],
+        ["Creators", "Find your next topic and turn one signal into a production-ready concept."],
+        ["Marketing teams", "Understand what audiences are responding to before planning content."],
+        ["Agencies", "Compare emerging formats across client niches without claiming total platform coverage."],
+        ["Trend researchers", "Inspect public signals, coverage, taxonomy, confidence, and ranking reasons."],
       ].map(([title, text]) => <article key={title}><h2>{title}</h2><p>{text}</p></article>)}</div>
     </section>
     <section className="marketing-split">
       <div>
-        <p className="eyebrow">Trust model</p>
-        <h2>We rank the retrieved candidate pool, not the whole internet.</h2>
-        <p>MOMENTUM can only score videos returned by the source APIs for your filters. When a 24h niche has no exact match, the interface tells you and can expand the window instead of fabricating certainty.</p>
-        <Link href="/home" className="primary-button">Enter workspace <ChevronRight size={14} /></Link>
+        <p className="eyebrow">Signal methodology</p>
+        <h2>We rank the candidate pool, not the whole internet.</h2>
+        <p>MOMENTUM builds an intelligence layer on top of public platform signals. Every scan separates retrieval, enrichment, intelligence filters, and ranking so users can see what was analyzed.</p>
+        <Link href="/methodology" className="primary-button">Read methodology <ChevronRight size={14} /></Link>
       </div>
       <div className="marketing-category-board">
-        {categories.slice(0, 5).map((category) => <Link href={liveTrendHref({ category: category.name })} key={category.slug}><span style={{ color: category.color }}>{category.name}</span><strong>+{category.momentum}%</strong><small>{category.subtopics[0]?.name}</small></Link>)}
+        {[
+          ["YouTube Shorts", "Available", "India MVP"],
+          ["Instagram Reels", "Coming soon", "Future adapter"],
+          ["City intelligence", "Locked", "No fake local data"],
+          ["Historical trends", "Locked", "Requires repeated snapshots"],
+        ].map(([name, status, note]) => <Link href={status === "Available" ? liveTrendHref() : "/pricing"} key={name}><span>{name}</span><strong>{status}</strong><small>{note}</small></Link>)}
       </div>
+    </section>
+    <section className="marketing-section final-cta">
+      <div>
+        <h2>Find what is moving. Understand why. Make something better.</h2>
+        <p>Start with India-wide YouTube Shorts intelligence today. Future platform, city, creator, and historical layers stay clearly marked until real evidence supports them.</p>
+      </div>
+      <Link href="/home" className="primary-button">Open MOMENTUM <ChevronRight size={14} /></Link>
+      <Link href={liveTrendHref({ category: thirdVideo.category, query: thirdVideo.topic })} className="quiet-button">Inspect a signal</Link>
     </section>
   </main>;
 }
@@ -103,8 +141,8 @@ export function LandingPage({ videos = sampleVideos, sourceMode = "demo", dataEr
 export function HomePage({ videos = sampleVideos, sourceMode = "demo", dataError }: { videos?: ShortVideo[]; sourceMode?: SourceMode; dataError?: string }) {
   const saved = JSON.parse(useSyncExternalStore(subscribeToSaved, savedSnapshot, savedServerSnapshot)) as string[];
   function toggleSave(id: string) {
-    const next = saved.includes(id) ? saved.filter((item) => item !== id) : [...saved, id];
-    writeSavedIds(next);
+    const video = videos.find((item) => item.id === id) ?? sampleVideos.find((item) => item.id === id);
+    if (video) toggleSavedVideo(video);
   }
   const modeLabel = sourceMode === "live" ? "Observed YouTube evidence" : "Demo mode / Sample fixture";
   const topVideo = videos[0] ?? sampleVideos[0];
@@ -205,8 +243,33 @@ function TrendingScanner({ videos, sourceMode, dataError, initialControls, initi
       setLoadingMore(false);
     }
   }
-  return <><section className="trend-workspace-heading"><div><p className="eyebrow">DISCOVER / INDIA / {sourceMode === "live" ? "OBSERVED" : "DEMO MODE"}</p><h1>What&apos;s Trending</h1><p>Every selected filter calls the scanner again, then classifies each result as Shorts or Long from source duration.</p></div><div className="trend-heading-actions"><button className="primary-button scan-button" onClick={() => setScanNonce((value) => value + 1)} disabled={scanning}><RefreshCw size={14} className={scanning ? "spin" : ""} /> {scanning ? "Scanning" : "Scan again"}</button><Link href="/search" className="quiet-button"><Search size={14} /> Search niche</Link></div></section><SourceTabs /><TrendControls state={controls} onChange={(next) => setControls((current) => ({ ...current, ...next, visibleCount: next.visibleCount ?? 10 }))} /><div className="filter-bar secondary-filters">{signalFilters.map((item) => <button key={item} onClick={() => setFilter(item)} className={filter === item ? "filter-active" : ""}>{item}</button>)}</div>{dataError && <div className="provider-error" role="status"><span>Source unavailable</span><strong>{dataError}</strong><Link href="/settings">Check configuration <ChevronRight size={13} /></Link></div>}<div className="workspace-results"><div><span className={scanning ? "scan-dot is-scanning" : "green-dot"} /> {scanning ? "Scanning YouTube..." : scanResultSummary(filtered.length, items.length, scanMeta)} <span>/</span> {sourceMode === "live" ? `API filters: ${activeScanSummary(controls, filter, scanMeta)}` : "Sample fixture"} <span>/</span> {scanMeta?.rankingScope ?? "ranked within retrieved candidates by velocity, reach, freshness, confidence"}</div><div className="sample-label">YOUTUBE {scanMeta?.effectiveWindow && scanMeta.effectiveWindow !== controls.window ? `${controls.format === "All videos" ? "VIDEOS" : controls.format.toUpperCase()} / ${scanMeta.effectiveWindow}` : controls.format === "All videos" ? "VIDEOS" : controls.format.toUpperCase()}</div></div>{scanMeta?.note && <div className="scan-note" role="status">{scanMeta.note}</div>}{shown.length ? controls.view === "Grid" ? <div className={`video-grid video-grid-wide reference-video-grid ${controls.density === "Comfortable" ? "video-grid-comfortable" : ""}`}>{shown.map((video, index) => <ShortCard key={video.id} rank={index + 1} video={video} />)}</div> : <div className="video-list-view">{shown.map((video, index) => <ShortListRow key={video.id} rank={index + 1} video={video} />)}</div> : <div className="search-empty trend-empty"><div className="search-empty-icon"><Search size={22} /></div><h2>{scanning ? "Scanning for matching videos." : "No exact signal for those controls."}</h2><p>{scanning ? "MOMENTUM is asking YouTube for the selected format, time window, language, category, and query." : "Try another category, language, or time window. MOMENTUM will not fill gaps with fake trend data."}</p></div>}<div className="load-more-panel">{loadError && <span>{loadError}</span>}<button className="quiet-button" onClick={loadMore} disabled={loadingMore || scanning || controls.visibleCount >= 50}>{loadingMore ? "Retrieving..." : shown.length < filtered.length ? "Show more matches" : "Retrieve more videos"} <ChevronRight size={14} /></button></div></>;
+  return <><section className="trend-workspace-heading"><div><p className="eyebrow">DISCOVER / INDIA / {sourceMode === "live" ? "OBSERVED" : "DEMO MODE"}</p><h1>What&apos;s Trending</h1><p>Every selected filter creates a retrieval plan, enriches the candidate pool, then applies format, taxonomy, language, and signal filters locally.</p></div><div className="trend-heading-actions"><button className="primary-button scan-button" onClick={() => setScanNonce((value) => value + 1)} disabled={scanning}><RefreshCw size={14} className={scanning ? "spin" : ""} /> {scanning ? "Scanning" : "Scan again"}</button><Link href="/search" className="quiet-button"><Search size={14} /> Search niche</Link></div></section><SourceTabs /><TrendControls state={controls} onChange={(next) => setControls((current) => ({ ...current, ...next, visibleCount: next.visibleCount ?? 10 }))} /><div className="filter-bar secondary-filters">{signalFilters.map((item) => <button key={item} onClick={() => setFilter(item)} className={filter === item ? "filter-active" : ""}>{item}</button>)}</div>{dataError && <div className="provider-error" role="status"><span>Source unavailable</span><strong>{dataError}</strong><Link href="/settings">Check configuration <ChevronRight size={13} /></Link></div>}<div className="workspace-results"><div><span className={scanning ? "scan-dot is-scanning" : "green-dot"} /> {scanning ? "Scanning YouTube..." : scanResultSummary(filtered.length, items.length, scanMeta)} <span>/</span> {sourceMode === "live" ? `Filters: ${activeScanSummary(controls, filter, scanMeta)}` : "Sample fixture"} <span>/</span> {scanMeta?.rankingMethod ?? "Momentum ranking within analyzed candidates"}</div><div className="sample-label">{scanMeta?.coverageConfidence ? `${scanMeta.coverageConfidence.toUpperCase()} COVERAGE` : `YOUTUBE ${controls.format === "All videos" ? "VIDEOS" : controls.format.toUpperCase()}`}</div></div>{scanMeta && <div className="coverage-strip" aria-label="Discovery coverage"><span><strong>{scanMeta.retrievedCount ?? scanMeta.candidatePool}</strong> retrieved</span><span><strong>{scanMeta.enrichedCount ?? scanMeta.candidatePool}</strong> enriched</span><span><strong>{scanMeta.matchedCount ?? scanMeta.exactMatches}</strong> matched</span><span><strong>{scanMeta.shownCount ?? scanMeta.returned}</strong> shown</span>{scanMeta.cacheHit && <span className="cache-hit-pill">cache hit</span>}</div>}{scanMeta?.note && <div className="scan-note" role="status">{scanMeta.note}</div>}
+{scanning ? (
+  controls.view === "Grid" ? <ShortCardGridSkeleton count={controls.visibleCount} /> : <ShortListViewSkeleton count={controls.visibleCount} />
+) : shown.length ? (
+  controls.view === "Grid" ? (
+    <div className={`video-grid video-grid-wide reference-video-grid ${controls.density === "Comfortable" ? "video-grid-comfortable" : ""}`}>
+      {shown.map((video, index) => <ShortCard key={video.id} rank={index + 1} video={video} />)}
+    </div>
+  ) : (
+    <div className="video-list-view">
+      {shown.map((video, index) => <ShortListRow key={video.id} rank={index + 1} video={video} />)}
+    </div>
+  )
+) : (
+  <div className="search-empty trend-empty">
+    <div className="search-empty-icon"><Search size={22} /></div>
+    <h2>No videos matched this combination.</h2>
+    <p>{emptyStateText(scanMeta)}</p>
+    <div className="empty-suggestions">
+      <span>Try removing AI taxonomy</span>
+      <span>Expand to 7d or 14d</span>
+      <span>Switch category or format</span>
+    </div>
+  </div>
+)}<div className="load-more-panel">{loadError && <span>{loadError}</span>}<button className="quiet-button" onClick={loadMore} disabled={loadingMore || scanning || controls.visibleCount >= 50}>{loadingMore ? "Retrieving..." : shown.length < filtered.length ? "Show more matches" : "Retrieve more videos"} <ChevronRight size={14} /></button></div></>;
 }
+
 
 function trendQuery(controls: TrendControlsState, filter: string, limit: number): string {
   const params = new URLSearchParams({
@@ -237,8 +300,16 @@ function activeScanSummary(controls: TrendControlsState, filter: string, meta?: 
 
 function scanResultSummary(filteredCount: number, itemCount: number, meta?: TrendScanMeta | null): string {
   if (!meta) return `${filteredCount} matching signals / ${itemCount} retrieved`;
-  if (meta.matchMode === "expanded-window") return `${meta.exactMatches} exact / ${filteredCount} shown / ${meta.candidatePool} candidates`;
-  return `${filteredCount} matching signals / ${meta.returned} shown / ${meta.candidatePool} candidates`;
+  if (meta.matchMode === "expanded-window") return `${meta.exactMatches} exact / ${filteredCount} shown / ${meta.enrichedCount ?? meta.candidatePool} analyzed`;
+  if (meta.matchMode === "adjacent") return `${meta.matchedCount ?? filteredCount} adjacent / ${meta.shownCount ?? meta.returned} shown / ${meta.enrichedCount ?? meta.candidatePool} analyzed`;
+  return `${meta.matchedCount ?? filteredCount} matched / ${meta.shownCount ?? meta.returned} shown / ${meta.enrichedCount ?? meta.candidatePool} analyzed`;
+}
+
+function emptyStateText(meta?: TrendScanMeta | null): string {
+  if (!meta) return "Your filters are narrower than the current discovery sample. MOMENTUM will not fill gaps with fake trend data.";
+  if ((meta.retrievedCount ?? 0) === 0) return "The source did not return a usable candidate pool for this retrieval plan.";
+  if ((meta.enrichedCount ?? 0) === 0) return "Candidates were retrieved, but video details could not be enriched for this sample.";
+  return "Your filters are narrower than the current discovery sample after enrichment and classification.";
 }
 
 function matchesControls(video: ShortVideo, controls: TrendControlsState): boolean {
@@ -252,14 +323,9 @@ function matchesControls(video: ShortVideo, controls: TrendControlsState): boole
 function sortVideos(videos: ShortVideo[], sort: TrendControlsState["sort"]): ShortVideo[] {
   return [...videos].sort((a, b) => {
     if (sort === "Popular") return b.views - a.views || b.momentumScore - a.momentumScore || b.viewsPerHour - a.viewsPerHour;
-    if (sort === "Latest") return latestRank(b) - latestRank(a) || ageHours(a.publishedAt) - ageHours(b.publishedAt);
+    if (sort === "Latest") return Date.parse(b.rawPublishedAt ?? b.publishedAt) - Date.parse(a.rawPublishedAt ?? a.publishedAt) || ageHours(a.publishedAt) - ageHours(b.publishedAt);
     return b.momentumScore - a.momentumScore || b.viewsPerHour - a.viewsPerHour || b.views - a.views;
   });
-}
-
-function latestRank(video: ShortVideo): number {
-  const recencyScore = Math.max(0, 100 - Math.min(ageHours(video.publishedAt), 336) / 336 * 100);
-  return recencyScore * 0.42 + video.momentumScore * 0.42 + (video.evidenceScore ?? 0) * 0.16;
 }
 
 function isShortVideo(video: ShortVideo): boolean {
@@ -292,12 +358,54 @@ export function ShortCard({ video, rank, saved, onSave }: { video: ShortVideo; r
   const isSaved = saved ?? savedIds.includes(video.id);
   function toggleSave() {
     if (onSave) return onSave();
-    const next = isSaved ? savedIds.filter((item) => item !== video.id) : [...savedIds, video.id];
-    writeSavedIds(next);
+    toggleSavedVideo(video);
   }
   const tags = [video.category, video.topic, video.format].filter(Boolean).slice(0, 3);
   const videoKind = video.videoKind ?? (isShortVideo(video) ? "Shorts" : "Long");
-  return <article className={`short-card ${videoKind === "Long" ? "long-card" : ""}`}><Link href={`/trending/${video.id}`} className="short-thumb"><Image src={displayThumbnail(video)} alt={video.title} fill sizes="(max-width: 640px) 100vw, (max-width: 1100px) 50vw, 25vw" unoptimized priority={Boolean(rank && rank <= 4)} /><div className="short-thumb-top"><span>#{rank ?? "-"}</span><strong>{video.velocity > 0 ? `+${video.velocity}%` : video.rankConfidence ? `${video.rankConfidence} evidence` : "First observation"}</strong></div><span className="format-pill">{videoKind}</span><span className="thumb-play"><Play size={13} fill="currentColor" /></span><span className="duration">{formatDuration(video.durationSeconds)}</span></Link><div className="short-body"><div className="short-title-row"><Link href={`/trending/${video.id}`} className="short-title">{video.title}</Link><button className={`save-button ${isSaved ? "save-active" : ""}`} onClick={toggleSave} aria-label={isSaved ? "Remove from saved" : "Save video"} title={isSaved ? "Remove from saved" : "Save video"}><Bookmark size={15} fill={isSaved ? "currentColor" : "none"} /></button></div><p className="short-channel"><span className="channel-dot" />{video.channel}<span>/</span>{video.publishedAt}</p><div className="short-metrics"><span><Eye size={13} /> {compact(video.views)}</span><span><Heart size={13} /> {compact(video.likes)}</span><span><MessageCircle size={13} /> {compact(video.comments)}</span></div><div className="velocity-row"><Activity size={13} /><strong>{compact(video.viewsPerHour)} views/hour</strong><span>{video.engagement}% engagement</span></div>{video.rankReason && <p className="rank-reason">{video.rankReason}</p>}<div className="short-tags"><span className={`trend-badge trend-${video.label.toLowerCase()}`}>{video.label}</span><span className="kind-tag">{videoKind}</span>{video.rankConfidence && <span className={`evidence-tag evidence-${video.rankConfidence.toLowerCase()}`}>{video.rankConfidence} evidence</span>}<span className={video.taxonomySource === "ai" ? "ai-tag" : ""}>{video.taxonomySource === "ai" ? "AI category" : "Rule category"}</span>{tags.map((tag) => <span key={tag}>{tag}</span>)}</div><div className="short-actions"><button onClick={toggleSave}><Bookmark size={12} fill={isSaved ? "currentColor" : "none"} /> {isSaved ? "Saved" : "Save"}</button><a href={video.sourceUrl} target="_blank" rel="noreferrer"><ExternalLink size={12} /> YouTube</a><Link href={`/trending/${video.id}`}>Details <ChevronRight size={12} /></Link></div></div></article>;
+  return <article className={`short-card ${videoKind === "Long" ? "long-card" : ""}`}>
+    <Link href={`/trending/${video.id}`} className="short-thumb">
+      <Image src={displayThumbnail(video)} alt={video.title} fill sizes="(max-width: 640px) 100vw, (max-width: 1100px) 50vw, 25vw" unoptimized priority={Boolean(rank && rank <= 4)} />
+      <div className="short-thumb-top">
+        <span className="rank-pill">#{rank ?? "-"}</span>
+        <span className="velocity-badge"><Zap size={11} /> {video.velocity > 0 ? `+${video.velocity}%` : `${compact(video.viewsPerHour)}/h`}</span>
+      </div>
+      <span className="format-pill">{videoKind}</span>
+      <span className="thumb-play"><Play size={13} fill="currentColor" /></span>
+      <span className="duration tabular-nums">{formatDuration(video.durationSeconds)}</span>
+    </Link>
+    <div className="short-body">
+      <div className="short-title-row">
+        <Link href={`/trending/${video.id}`} className="short-title">{video.title}</Link>
+        <button className={`save-button ${isSaved ? "save-active" : ""}`} onClick={toggleSave} aria-label={isSaved ? "Remove from saved" : "Save video"} title={isSaved ? "Remove from saved" : "Save video"}>
+          <Bookmark size={15} fill={isSaved ? "currentColor" : "none"} />
+        </button>
+      </div>
+      <p className="short-channel"><span className="channel-dot" />{video.channel}<span>/</span>{video.publishedAt}</p>
+      <div className="short-metrics tabular-nums">
+        <span><Eye size={13} /> {compact(video.views)}</span>
+        <span><Heart size={13} /> {compact(video.likes)}</span>
+        <span><MessageCircle size={13} /> {compact(video.comments)}</span>
+      </div>
+      <div className="velocity-row tabular-nums">
+        <Activity size={13} />
+        <strong>{compact(video.viewsPerHour)} views/hour</strong>
+        <span>{video.engagement}% engagement</span>
+      </div>
+      {video.rankReason && <p className="rank-reason">{video.rankReason}</p>}
+      <div className="short-tags">
+        <span className={`trend-badge trend-${video.label.toLowerCase()}`}>{video.label}</span>
+        <span className="kind-tag">{videoKind}</span>
+        {video.rankConfidence && <span className={`evidence-tag evidence-${video.rankConfidence.toLowerCase()}`}>{video.rankConfidence} evidence</span>}
+        <span className={video.taxonomySource === "ai" ? "ai-tag" : ""}>{video.taxonomySource === "ai" ? "AI category" : "Rule category"}</span>
+        {tags.map((tag) => <span key={tag}>{tag}</span>)}
+      </div>
+      <div className="short-actions">
+        <button onClick={toggleSave}><Bookmark size={12} fill={isSaved ? "currentColor" : "none"} /> {isSaved ? "Saved" : "Save"}</button>
+        <a href={video.sourceUrl} target="_blank" rel="noreferrer"><ExternalLink size={12} /> YouTube</a>
+        <Link href={`/trending/${video.id}`}>Details <ChevronRight size={12} /></Link>
+      </div>
+    </div>
+  </article>;
 }
 
 function ShortListRow({ video, rank }: { video: ShortVideo; rank: number }) {

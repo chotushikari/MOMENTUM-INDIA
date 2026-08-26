@@ -37,6 +37,10 @@ const createLinks = [
   { href: "/saved", label: "Saved Ideas", icon: Bookmark },
 ];
 
+const intelligenceLinks = [
+  { href: "/methodology", label: "Signal Methodology", icon: BarChart3 },
+];
+
 const futureLinks = [
   { label: "City intelligence", value: "India-wide today" },
   { label: "Creator intelligence", value: "Coming soon" },
@@ -95,6 +99,10 @@ export function ProductShell({ children }: ProductShellProps) {
           <div className="nav-group">
             <p className="nav-label">Create</p>
             {createLinks.map((item) => <NavLink key={item.href} {...item} onNavigate={() => setMobileOpen(false)} />)}
+          </div>
+          <div className="nav-group">
+            <p className="nav-label">Intelligence</p>
+            {intelligenceLinks.map((item) => <NavLink key={item.href} {...item} onNavigate={() => setMobileOpen(false)} />)}
           </div>
           <div className="nav-group">
             <p className="nav-label">Account</p>

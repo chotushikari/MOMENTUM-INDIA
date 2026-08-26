@@ -1,0 +1,2897 @@
+You are now acting as the Principal Product Architect, Search/Ranking Engineer, Data Engineer, AI Systems Architect, Creator Intelligence Product Designer, and Senior Frontend Engineer for MOMENTUM.
+
+This is NOT a request to add a few features.
+
+We are now upgrading MOMENTUM from a visually polished prototype into a credible short-form intelligence product.
+
+The product must answer three questions exceptionally well:
+
+1. WHAT is moving?
+2. WHY is it moving?
+3. WHAT should I do about it?
+
+The third question is where MOMENTUM becomes much more than a trending dashboard.
+
+==================================================
+0. PRODUCT DEFINITION
+==================================================
+
+MOMENTUM is:
+
+A short-form intelligence platform for creators, marketers,
+social teams and trend researchers.
+
+Current MVP:
+
+YouTube Shorts
+India
+
+Future:
+
+Instagram Reels
+Other short-form platforms
+City intelligence
+Creator intelligence
+Historical intelligence
+Competitor intelligence
+
+Do not pretend future capabilities already exist.
+
+The UI may show them as locked.
+
+==================================================
+1. THE CORE PRODUCT LOOP
+==================================================
+
+The entire application should revolve around:
+
+DISCOVER
+    ↓
+UNDERSTAND
+    ↓
+DECIDE
+    ↓
+CREATE
+
+More specifically:
+
+WHAT IS MOVING?
+        ↓
+WHY IS IT MOVING?
+        ↓
+IS IT RELEVANT TO ME?
+        ↓
+WHAT COULD I CREATE?
+        ↓
+HOW SHOULD I MAKE IT?
+        ↓
+WHAT SHOULD I TEST?
+
+This becomes the product architecture.
+
+==================================================
+2. CURRENT PROBLEM: 0 MATCHING SIGNALS
+==================================================
+
+There is currently a serious discovery problem.
+
+The UI is showing things like:
+
+0 matching signals
+/
+0 retrieved
+/
+API filters:
+Long / 24h / Music / AI taxonomy
+/
+ranked by velocity, reach, freshness, confidence
+
+This is misleading and architecturally incorrect.
+
+Fix this.
+
+Never let the UI imply that every UI filter is directly supported by the YouTube API.
+
+Separate:
+
+A. RETRIEVAL FILTERS
+B. ENRICHMENT FILTERS
+C. INTELLIGENCE FILTERS
+D. RANKING
+
+==================================================
+3. THREE-STAGE DISCOVERY ARCHITECTURE
+==================================================
+
+Implement:
+
+RETRIEVE
+    ↓
+ENRICH
+    ↓
+FILTER + RANK
+
+Example:
+
+User selects:
+
+Shorts
+24h
+Food
+India
+Hot
+
+The system should NOT try to force every condition into
+search.list.
+
+Instead:
+
+STEP 1 — RETRIEVE CANDIDATES
+
+Use appropriate YouTube API queries.
+
+STEP 2 — ENRICH
+
+Fetch:
+
+video details
+statistics
+channel data
+category
+duration
+metadata
+
+STEP 3 — NORMALIZE
+
+Convert all data into MOMENTUM domain objects.
+
+STEP 4 — CLASSIFY
+
+Determine:
+
+isShort
+category
+subtopics
+topics
+language
+niche
+confidence
+
+STEP 5 — CALCULATE SIGNALS
+
+velocity
+acceleration
+engagement
+freshness
+relative performance
+
+STEP 6 — APPLY USER FILTERS
+
+Now apply:
+
+Food
+Shorts
+24h
+etc.
+
+STEP 7 — RANK
+
+Rank using:
+
+momentum
+velocity
+reach
+freshness
+confidence
+
+This is critical.
+
+==================================================
+4. NEVER RETURN ZERO JUST BECAUSE ONE API FILTER FAILS
+==================================================
+
+If:
+
+category = Music
+
+and AI taxonomy doesn't classify something as Music,
+
+that should not necessarily cause the entire API retrieval to return zero.
+
+Instead:
+
+retrieve candidates
++
+classify
++
+filter.
+
+If there are truly no results:
+
+explain why.
+
+Example:
+
+"No Shorts matched all selected filters."
+
+Then show:
+
+"Try relaxing:
+
+AI taxonomy
+Language
+Time window"
+
+Do not show a broken-looking:
+
+0 matching signals / 0 retrieved
+
+unless that is genuinely the state.
+
+==================================================
+5. "LATEST" MUST WORK
+==================================================
+
+There is currently a bug where Latest produces no results.
+
+Investigate it before doing anything else.
+
+YouTube search supports:
+
+order=date
+
+and:
+
+publishedAfter
+publishedBefore
+
+but the API's search semantics and MOMENTUM's internal taxonomy must not be conflated.
+
+Implement Latest as:
+
+1. Retrieve recent candidate videos.
+2. Use date ordering where appropriate.
+3. Enrich candidates.
+4. Determine Shorts.
+5. Apply category/taxonomy filters locally.
+6. Rank primarily by publishedAt.
+
+Latest should NOT be ranked by momentum first.
+
+Define:
+
+LATEST:
+
+primary:
+publishedAt descending
+
+secondary:
+freshness
+
+TRENDS:
+
+primary:
+momentumScore
+
+POPULAR:
+
+primary:
+reach/views
+
+This is a fundamental ranking-mode distinction.
+
+==================================================
+6. SEARCH STRATEGY
+==================================================
+
+Create:
+
+lib/discovery/
+
+candidate-retriever.ts
+query-planner.ts
+candidate-merger.ts
+candidate-deduper.ts
+enrichment.ts
+coverage.ts
+
+The query planner should understand the user's request.
+
+Example:
+
+"Food + Shorts + India + 24h"
+
+becomes a retrieval plan.
+
+Do NOT make one API request with every possible filter.
+
+==================================================
+7. MULTI-QUERY RETRIEVAL
+==================================================
+
+For important discovery surfaces, retrieve candidates through
+multiple query strategies.
+
+Example:
+
+Food:
+
+food
+street food
+recipe
+cooking
+restaurant
+Indian food
+food vlog
+
+AI:
+
+AI
+artificial intelligence
+AI tools
+AI agents
+coding AI
+Claude
+ChatGPT
+Gemini
+
+The query planner can maintain a controlled taxonomy dictionary.
+
+Do NOT make hundreds of queries.
+
+Respect YouTube quota.
+
+==================================================
+8. QUOTA-AWARE RETRIEVAL
+==================================================
+
+YouTube API quota is a first-class architectural constraint.
+
+Do not repeatedly call search.list for every UI interaction.
+
+Cache candidate pools.
+
+Deduplicate IDs.
+
+Batch video details.
+
+Use stale-while-revalidate where appropriate.
+
+Track:
+
+search requests
+video detail requests
+cache hits
+cache misses
+
+Do not silently burn quota.
+
+==================================================
+9. DISCOVERY CACHE
+==================================================
+
+Create a candidate cache.
+
+Example:
+
+DiscoverySnapshot:
+
+region
+query
+timeWindow
+retrievedAt
+candidateIds
+nextPageToken
+source
+
+Cache recent candidate pools.
+
+Example:
+
+India
+Food
+24h
+
+cached for 10–30 minutes depending on environment.
+
+The frontend should never directly trigger uncontrolled external API calls.
+
+==================================================
+10. COVERAGE — FIX THE "TOP 10" PROBLEM
+==================================================
+
+We currently show 10 or 20 videos.
+
+We CANNOT claim:
+
+"These are the best 10 videos on YouTube."
+
+That claim is unsupported.
+
+Instead define:
+
+DISCOVERY COVERAGE.
+
+Example UI:
+
+"18,420 candidate signals"
+
+"1,240 enriched"
+
+"384 matched your filters"
+
+"Top 10 shown"
+
+Or when the dataset is smaller:
+
+"128 candidates analyzed"
+
+"42 matched"
+
+"Top 10 ranked"
+
+This is honest.
+
+==================================================
+11. RESULT PROVENANCE
+==================================================
+
+Every discovery response should carry:
+
+candidateCount
+retrievedCount
+enrichedCount
+matchedCount
+shownCount
+coverageWindow
+retrievedAt
+rankingMethod
+sources
+
+Example:
+
+India · YouTube Shorts · Last 24h
+
+1,284 candidates retrieved
+326 enriched
+84 matched
+Top 10 ranked by Momentum
+
+Updated 8m ago
+
+This is much more credible than pretending we crawled all of YouTube.
+
+==================================================
+12. COVERAGE LANGUAGE
+==================================================
+
+Use:
+
+"Top signals from the candidates we analyzed"
+
+NOT:
+
+"Top 10 YouTube videos"
+
+Use:
+
+"Based on the latest India discovery sample"
+
+NOT:
+
+"Everything trending in India"
+
+Use:
+
+"Momentum ranking"
+
+NOT:
+
+"YouTube's official ranking"
+
+This distinction is critical for product credibility.
+
+==================================================
+13. CONFIDENCE
+==================================================
+
+Create:
+
+coverageConfidence
+
+and:
+
+signalConfidence
+
+Example:
+
+HIGH CONFIDENCE
+
+Large candidate pool
+Strong metadata coverage
+Multiple independent signals
+
+MEDIUM
+
+Moderate candidate coverage
+
+LOW
+
+Small sample
+Limited enrichment
+Insufficient historical data
+
+Never display a confidence score just for decoration.
+
+It must mean something.
+
+==================================================
+14. MOMENTUM SCORE
+==================================================
+
+Separate:
+
+Momentum Score
+
+from:
+
+Popularity
+
+Popularity:
+how large it already is.
+
+Momentum:
+how strongly it is changing.
+
+Use:
+
+velocity
+acceleration
+engagement velocity
+freshness
+relative performance
+
+Do not let raw views dominate.
+
+==================================================
+15. BASELINE MODEL
+==================================================
+
+This is a major upgrade.
+
+A video with:
+
+100K views
+
+may be extraordinary for a small/new creator.
+
+A video with:
+
+100K views
+
+may be weak for a huge creator.
+
+Therefore calculate relative performance where possible.
+
+Possible baseline:
+
+creator historical median
+category historical median
+topic historical median
+age-adjusted expected views
+
+Then:
+
+relativePerformance =
+actual / expected
+
+This should contribute to momentum.
+
+==================================================
+16. VIDEO AGE NORMALIZATION
+==================================================
+
+A 2-hour-old video and a 7-day-old video cannot be compared directly.
+
+Calculate:
+
+ageHours
+
+viewsPerHour
+
+engagementPerHour
+
+velocity
+
+acceleration
+
+Then compare age-adjusted signals.
+
+==================================================
+17. TREND STATES
+==================================================
+
+Use:
+
+EMERGING
+RISING
+EXPLODING
+STABLE
+COOLING
+
+State transitions should be deterministic.
+
+Do not let AI decide whether something is "Exploding".
+
+The intelligence engine decides.
+
+AI explains it.
+
+==================================================
+18. AI'S ROLE
+==================================================
+
+AI must NOT calculate:
+
+views
+velocity
+acceleration
+rank
+engagement
+
+Those are deterministic.
+
+AI should interpret:
+
+why
+what it means
+what pattern is visible
+what content opportunity exists
+what creator could test
+
+This separation is mandatory.
+
+==================================================
+19. VIDEO INTELLIGENCE
+==================================================
+
+Every video deep-dive should become a complete intelligence report.
+
+Sections:
+
+OVERVIEW
+
+SIGNAL
+
+WHY IT IS MOVING
+
+AUDIENCE
+
+FORMAT
+
+TOPIC
+
+HOOK
+
+CONTENT STRUCTURE
+
+COMMENTS / REACTIONS
+
+OPPORTUNITY
+
+RELATED TRENDS
+
+CREATE FROM THIS
+
+==================================================
+20. VIDEO OVERVIEW
+==================================================
+
+Show:
+
+Title
+Creator
+Published
+Views
+Likes
+Comments
+Velocity
+Momentum
+Category
+Topics
+Language
+Video duration
+
+No unnecessary decoration.
+
+==================================================
+21. SIGNAL ANALYSIS
+==================================================
+
+Example:
+
+Momentum:
+87 / 100
+
+Velocity:
+31.2K views/hour
+
+Acceleration:
++42%
+
+Engagement:
+8.4%
+
+Relative performance:
+3.1× category baseline
+
+Then:
+
+SIGNAL STRENGTH
+
+High
+
+Why:
+
+"Velocity is accelerating while engagement remains above the
+category baseline."
+
+AI should explain these actual values.
+
+==================================================
+22. WHY IS THIS TRENDING?
+==================================================
+
+Generate grounded analysis.
+
+Possible dimensions:
+
+Hook strength
+Topic timing
+Format
+Emotional trigger
+Novelty
+Creator authority
+Audience relevance
+Trend adjacency
+Comment activity
+Shareability signals
+Visual pattern
+Duration
+Title/caption structure
+
+Only claim things supported by available evidence.
+
+If transcript/visual data is unavailable:
+
+say so.
+
+Do not hallucinate.
+
+==================================================
+23. VIDEO CONTENT ANALYSIS
+==================================================
+
+For videos where enough content is available:
+
+Analyze:
+
+HOOK
+
+What happens in first seconds?
+
+STRUCTURE
+
+How does the video progress?
+
+PAYOFF
+
+What keeps viewers watching?
+
+FORMAT
+
+Talking head
+Tutorial
+Story
+Reaction
+Before/after
+Listicle
+Challenge
+Transformation
+etc.
+
+CTA
+
+What action is encouraged?
+
+This becomes the basis for creator recommendations.
+
+==================================================
+24. TRANSCRIPT / AUDIO
+==================================================
+
+If transcript/captions are available:
+
+analyze transcript.
+
+If not:
+
+do not invent transcript.
+
+Potential future:
+
+speech-to-text processing for accessible video content.
+
+Architecture should support:
+
+transcript
+segments
+timestamps
+
+==================================================
+25. VISUAL ANALYSIS
+==================================================
+
+Where technically available and legally appropriate:
+
+analyze thumbnail/frame information.
+
+Extract:
+
+visual composition
+text overlay
+face presence
+scene type
+visual hook
+
+Do not pretend to have analyzed video frames if we didn't.
+
+==================================================
+26. COMMENTS INTELLIGENCE
+==================================================
+
+If comments are available through the configured API/access:
+
+Analyze:
+
+audience questions
+emotional reactions
+objections
+requests
+repeated phrases
+content demand
+confusion
+next-video requests
+
+This is extremely valuable.
+
+Example:
+
+AUDIENCE DEMAND
+
+"Viewers repeatedly ask for a part 2."
+
+"Multiple comments ask how to replicate this."
+
+"People are requesting the tool shown."
+
+This can become content opportunity.
+
+==================================================
+27. AUDIENCE INTENT
+==================================================
+
+Classify comments/topics into:
+
+Curiosity
+Learning
+Entertainment
+Debate
+Purchase intent
+Replication intent
+Part-2 demand
+Community reaction
+
+Use confidence.
+
+==================================================
+28. CREATOR INTELLIGENCE
+==================================================
+
+For a video:
+
+Show:
+
+Creator
+
+Channel size if available
+
+Video vs creator baseline
+
+Topic consistency
+
+Recent momentum
+
+This answers:
+
+"Is this an isolated hit or part of a creator trend?"
+
+==================================================
+29. TREND VS OUTLIER
+==================================================
+
+This is an important intelligence feature.
+
+A video can be:
+
+TREND:
+many related videos accelerating
+
+OUTLIER:
+one video dramatically outperforming peers
+
+CREATOR HIT:
+creator is repeatedly outperforming
+
+TOPIC SURGE:
+topic itself is accelerating
+
+Use deterministic evidence + AI explanation.
+
+==================================================
+30. RELATED VIDEOS
+==================================================
+
+Do not merely show random related videos.
+
+Group:
+
+Similar concept
+
+Same topic
+
+Same format
+
+Same hook
+
+Same audience
+
+Competing videos
+
+Follow-up videos
+
+Then explain why they are related.
+
+==================================================
+31. CONTENT ASSISTANT — COMPLETE REDESIGN
+==================================================
+
+The existing Content Assistant must be redesigned completely.
+
+It is NOT:
+
+"ChatGPT for creators."
+
+It is:
+
+A creator decision and production assistant grounded in MOMENTUM's intelligence.
+
+==================================================
+32. CONTENT ASSISTANT ENTRY
+==================================================
+
+Landing:
+
+CONTENT ASSISTANT
+
+"Turn a trend into something worth making."
+
+User should be able to choose:
+
+Use a trend
+
+Use a video
+
+Use a niche
+
+Use my channel
+
+Start from scratch
+
+==================================================
+33. CHANNEL CONTEXT
+==================================================
+
+This is critical.
+
+Create:
+
+MY CHANNEL
+
+The assistant should eventually understand:
+
+channel niche
+audience
+language
+format
+posting frequency
+past videos
+top videos
+underperforming videos
+style
+creator goals
+
+For MVP, allow manual profile input:
+
+My niche:
+AI / Tech
+
+Audience:
+students / developers
+
+Language:
+English + Hinglish
+
+Format:
+Shorts
+
+Goal:
+growth
+
+==================================================
+34. CHANNEL INTELLIGENCE
+==================================================
+
+Once channel data is available:
+
+compare:
+
+my channel
+vs
+trend
+vs
+niche baseline
+
+Example:
+
+"This trend is relevant to your channel."
+
+"Your channel has previously performed well on AI tooling."
+
+"This concept is adjacent to your strongest videos."
+
+This is vastly more useful than generic content generation.
+
+==================================================
+35. CONTENT OPPORTUNITY ENGINE
+==================================================
+
+For each trend:
+
+calculate:
+
+trend strength
+audience fit
+channel fit
+competition
+novelty
+production difficulty
+timeliness
+
+Then generate:
+
+CONTENT OPPORTUNITY SCORE
+
+Example:
+
+Opportunity:
+92 / 100
+
+Why:
+
+Strong trend
+High channel fit
+Moderate competition
+Easy to produce
+
+==================================================
+36. WHAT SHOULD I MAKE?
+==================================================
+
+The assistant should provide options.
+
+Not immediately write a script.
+
+Example:
+
+WHAT YOU COULD MAKE
+
+1. Fast reaction
+2. Tutorial
+3. Contrarian take
+4. Breakdown
+5. Remix
+6. Story
+7. Comparison
+8. Experiment
+
+Each with:
+
+why it fits
+difficulty
+potential
+risk
+
+User chooses one.
+
+==================================================
+37. USER MUST CONTROL DEPTH
+==================================================
+
+Do not overwhelm users.
+
+Default:
+
+high-level recommendation.
+
+Then buttons:
+
+Analyze deeper
+
+Give me concepts
+
+Write the hook
+
+Write the script
+
+Make 3 variations
+
+Optimize title
+
+Generate caption
+
+Generate hashtags
+
+Create shot list
+
+Only generate when requested.
+
+==================================================
+38. VIRAL CONCEPT REMIX
+==================================================
+
+This is a flagship feature.
+
+For a selected video:
+
+"Find the underlying concept."
+
+Do NOT copy the exact script.
+
+Instead extract:
+
+core premise
+hook mechanism
+format
+emotional trigger
+payoff
+audience promise
+
+Then generate ORIGINAL adaptations.
+
+Example:
+
+ORIGINAL CONCEPT
+
+"AI replaces a boring workflow."
+
+MOMENTUM REMIXES:
+
+For students
+For developers
+For marketers
+For business owners
+
+Same underlying mechanism.
+
+Different original execution.
+
+==================================================
+39. SCRIPT ENGINE
+==================================================
+
+Only after user asks:
+
+Write Script
+
+Generate:
+
+HOOK
+0–3s
+
+SETUP
+3–8s
+
+VALUE / ESCALATION
+
+PAYOFF
+
+CTA
+
+Also provide:
+
+spoken words
+on-screen text
+visual direction
+B-roll suggestions
+cut points
+
+Do not produce bloated paragraphs.
+
+Short-form scripts should be production-ready.
+
+==================================================
+40. MULTIPLE SCRIPT MODES
+==================================================
+
+Modes:
+
+FAST / 15s
+
+STANDARD / 30s
+
+DEEP / 45–60s
+
+USER CONTROLLED
+
+==================================================
+41. HOOK ENGINE
+==================================================
+
+Generate multiple hook strategies:
+
+Curiosity
+
+Contrarian
+
+Pattern interrupt
+
+Outcome
+
+Question
+
+Shock
+
+Demonstration
+
+Story
+
+Then explain:
+
+Why this hook fits the trend.
+
+==================================================
+42. RETENTION ENGINE
+==================================================
+
+The assistant should recommend:
+
+pattern interrupts
+visual changes
+open loops
+payoffs
+cuts
+proof moments
+
+Do not claim guaranteed retention.
+
+Say:
+
+"Retention hypothesis"
+
+not:
+
+"This will go viral."
+
+==================================================
+43. TITLE / CAPTION
+==================================================
+
+Generate when requested:
+
+Title
+
+Caption
+
+Description
+
+Pinned comment
+
+CTA
+
+Each grounded in the chosen concept.
+
+==================================================
+44. HASHTAG ENGINE
+==================================================
+
+Do NOT output:
+
+#viral
+#fyp
+#trending
+#reels
+#shorts
+
+just because they are popular.
+
+Generate a balanced set:
+
+Broad topic
+
+Niche
+
+Specific topic
+
+Context
+
+Intent
+
+Example:
+
+#AIAgents
+#ClaudeCode
+#AICoding
+#DeveloperTools
+#AIEngineering
+
+Explain the role of each.
+
+Never claim hashtags guarantee reach.
+
+==================================================
+45. TREND ADJACENCY
+==================================================
+
+The system should detect:
+
+adjacent trends
+
+not only exact topics.
+
+Example:
+
+AI agents
+→ coding agents
+→ browser agents
+→ autonomous workflows
+→ MCP
+
+This creates early opportunity discovery.
+
+==================================================
+46. TREND LIFECYCLE
+==================================================
+
+Classify:
+
+EARLY
+
+RISING
+
+PEAKING
+
+SATURATED
+
+COOLING
+
+This is extremely useful for creators.
+
+Example:
+
+AI Agents
+
+EARLY:
+opportunity high
+
+RISING:
+opportunity high
+
+PEAKING:
+competition increasing
+
+SATURATED:
+harder to differentiate
+
+COOLING:
+use only with a fresh angle
+
+==================================================
+47. OPPORTUNITY MATRIX
+==================================================
+
+For a topic:
+
+                    LOW COMPETITION     HIGH COMPETITION
+
+EARLY                    GOLD                WATCH
+
+RISING                   STRONG              DIFFERENTIATE
+
+PEAKING                  ANGLE               HARD
+
+COOLING                  NICHE              AVOID
+
+This can become one of MOMENTUM's signature features.
+
+==================================================
+48. "MAKE THIS VIRAL" MODE
+==================================================
+
+Do NOT literally promise:
+
+"Make this viral."
+
+Instead:
+
+"Build a stronger version of this concept."
+
+Analyze:
+
+hook
+format
+topic
+audience
+timing
+differentiation
+
+Then propose:
+
+KEEP
+CHANGE
+REMOVE
+ADD
+
+Example:
+
+KEEP:
+core premise
+
+CHANGE:
+first 2 seconds
+
+ADD:
+visual proof
+
+REMOVE:
+slow setup
+
+This is much more credible.
+
+==================================================
+49. CONTENT GAP ENGINE
+==================================================
+
+Analyze a topic and ask:
+
+What is everyone making?
+
+What is missing?
+
+What questions are unanswered?
+
+What audience requests are repeated?
+
+What formats are underused?
+
+Then:
+
+CONTENT GAPS
+
+Example:
+
+"Most videos explain what AI agents are."
+
+"Few show a real workflow."
+
+Opportunity:
+
+"Build a 30-second real workflow demonstration."
+
+==================================================
+50. COMPETITION ANALYSIS
+==================================================
+
+For a niche:
+
+show:
+
+number of signals analyzed
+top creators
+dominant formats
+dominant hooks
+average performance
+emerging topics
+content gaps
+
+Do not pretend we have the entire platform.
+
+Always show sample/coverage.
+
+==================================================
+51. CONTENT OPPORTUNITY REPORT
+==================================================
+
+For a selected trend:
+
+Trend:
+
+AI Agents
+
+Stage:
+
+Rising
+
+Momentum:
+
+84
+
+Competition:
+
+Medium-high
+
+Audience demand:
+
+High
+
+Channel fit:
+
+High
+
+Recommended angle:
+
+"Show a real workflow instead of explaining agents."
+
+Then:
+
+3 concepts.
+
+==================================================
+52. CHANNEL-SPECIFIC RECOMMENDATIONS
+==================================================
+
+If user has channel context:
+
+The assistant must answer:
+
+Should I make this?
+
+Why?
+
+Which angle?
+
+What format?
+
+What length?
+
+What hook?
+
+What language?
+
+What CTA?
+
+How does it differ from my recent content?
+
+==================================================
+53. "WHAT SHOULD I POST TODAY?"
+==================================================
+
+Eventually provide:
+
+TODAY'S OPPORTUNITIES
+
+1.
+High fit / high momentum
+
+2.
+Medium competition / rising topic
+
+3.
+Experimental concept
+
+Each includes:
+
+trend
+reason
+format
+hook
+difficulty
+
+This becomes a daily creator workflow.
+
+==================================================
+54. LANDING PAGE — COMPLETE REDESIGN
+==================================================
+
+The existing landing page should be completely redesigned.
+
+It must NOT look like a dashboard with a marketing headline.
+
+The landing page must explain the product.
+
+Hero:
+
+KNOW WHAT'S MOVING
+BEFORE IT'S OBVIOUS.
+
+Sub:
+
+MOMENTUM turns short-form signals into intelligence
+for creators and teams.
+
+CTA:
+
+Explore what's moving →
+
+Secondary:
+
+See how MOMENTUM works
+
+==================================================
+55. LANDING PAGE STORY
+==================================================
+
+SECTION 1:
+
+The problem.
+
+"By the time everyone sees a trend,
+it's already crowded."
+
+SECTION 2:
+
+The signal.
+
+"Views tell you what happened.
+Momentum tells you what's changing."
+
+SECTION 3:
+
+Show actual example.
+
+Video:
+
+100K views
+
+But:
+
++38K views/hour
+
+Momentum rising
+
+Explain:
+
+"The second signal is the interesting one."
+
+==================================================
+56. LANDING PAGE — PRODUCT FLOW
+==================================================
+
+Show:
+
+DISCOVER
+
+What's moving?
+
+↓
+
+UNDERSTAND
+
+Why is it moving?
+
+↓
+
+DECIDE
+
+Is it relevant to you?
+
+↓
+
+CREATE
+
+What should you make?
+
+This should become the central product narrative.
+
+==================================================
+57. LANDING PAGE — CREATOR AUDIENCE
+==================================================
+
+Primary audience:
+
+Creators
+
+Secondary:
+
+Content teams
+Agencies
+Marketers
+Social media managers
+Trend researchers
+
+Do not target everyone.
+
+==================================================
+58. LANDING PAGE — USE CASES
+==================================================
+
+Creator:
+
+Find your next topic.
+
+Marketing team:
+
+Understand what audiences are responding to.
+
+Agency:
+
+Find emerging formats across clients.
+
+Brand:
+
+Identify emerging conversations.
+
+==================================================
+59. LANDING PAGE — DIFFERENTIATION
+==================================================
+
+Explain:
+
+YouTube shows popularity.
+
+MOMENTUM analyzes movement.
+
+Do not claim access to all YouTube.
+
+Say:
+
+"We build an intelligence layer on top of public platform signals."
+
+==================================================
+60. LANDING PAGE — PRODUCT SCREENSHOTS
+==================================================
+
+Use real application UI.
+
+Do not use fake conceptual illustrations.
+
+Show:
+
+Trending
+
+Video intelligence
+
+Niche intelligence
+
+Content Assistant
+
+==================================================
+61. LANDING PAGE — NO GENERIC AI LANGUAGE
+==================================================
+
+Never use:
+
+"AI-powered revolution"
+
+"next-generation"
+
+"unlock the power"
+
+"transform your workflow"
+
+Instead:
+
+"Find what is moving."
+
+"Understand why."
+
+"Make something better."
+
+==================================================
+62. PLATFORM ROADMAP
+==================================================
+
+Show:
+
+YouTube Shorts
+AVAILABLE
+
+Instagram Reels
+COMING SOON
+
+More platforms
+COMING SOON
+
+City intelligence
+LOCKED
+
+Creator intelligence
+LOCKED
+
+Historical trends
+LOCKED
+
+This communicates vision without lying.
+
+==================================================
+63. DATA TRANSPARENCY
+==================================================
+
+Create a subtle:
+
+Signal methodology
+
+page/modal.
+
+Explain:
+
+What we measure.
+
+How momentum works.
+
+What coverage means.
+
+What we cannot know.
+
+This is a trust feature.
+
+==================================================
+64. "BEST 10" PROBLEM
+==================================================
+
+Never call results:
+
+"The 10 best videos on YouTube."
+
+Call:
+
+"Top 10 MOMENTUM signals"
+
+with:
+
+"from the candidates analyzed"
+
+and show coverage.
+
+Example:
+
+1,284 candidates
+326 enriched
+84 matched
+10 ranked
+
+This is defensible.
+
+==================================================
+65. RESULT EXPLANATION
+==================================================
+
+Add a small:
+
+Why am I seeing this?
+
+popover.
+
+Example:
+
+"Ranked highly because this Short has:
+
+2.7× category-relative velocity
++
+accelerating views
++
+high engagement
++
+strong freshness."
+
+This builds trust.
+
+==================================================
+66. RANKING TRANSPARENCY
+==================================================
+
+Create:
+
+rankingReason
+
+Example:
+
+Rank #2
+
+because:
+
+Velocity: High
+Freshness: High
+Relative performance: Very high
+Confidence: High
+
+This should be available on deep dive.
+
+==================================================
+67. FALSE PRECISION
+==================================================
+
+Avoid:
+
+"87.394 momentum"
+
+Use:
+
+87
+
+or:
+
+87 / 100
+
+Numbers should communicate confidence, not fake mathematical precision.
+
+==================================================
+68. AI GROUNDING
+==================================================
+
+Every AI generation request should receive structured evidence.
+
+Example:
+
+{
+  video,
+  trendScore,
+  velocity,
+  acceleration,
+  engagement,
+  category,
+  topics,
+  relatedSignals,
+  comments,
+  transcript,
+  creatorContext
+}
+
+The AI system must explicitly:
+
+NOT invent data
+NOT invent audience reactions
+NOT claim unavailable analysis
+NOT claim guaranteed virality
+
+==================================================
+69. AI OUTPUT FORMAT
+==================================================
+
+Prefer structured output:
+
+{
+  summary,
+  evidence[],
+  implications[],
+  opportunities[],
+  risks[],
+  recommendations[]
+}
+
+Use typed schemas.
+
+Never rely on parsing free-form text.
+
+==================================================
+70. CREATOR OUTPUT SHOULD BE ACTIONABLE
+==================================================
+
+Bad:
+
+"Create engaging content around AI."
+
+Good:
+
+"Create a 25–30 second screen-recorded demonstration of an AI
+coding agent completing one concrete task.
+
+Why:
+
+AI coding Shorts are accelerating,
+but most high-performing examples in this sample
+are explanation-heavy.
+
+Opportunity:
+
+demonstration-first format."
+
+That is the quality bar.
+
+==================================================
+71. CONTENT QUALITY
+==================================================
+
+For every recommendation provide:
+
+WHY
+
+WHAT
+
+HOW
+
+RISK
+
+ALTERNATIVE
+
+Example:
+
+WHY:
+Topic is rising.
+
+WHAT:
+Create a workflow demo.
+
+HOW:
+Hook → problem → live demo → result.
+
+RISK:
+Topic is becoming crowded.
+
+ALTERNATIVE:
+Use a contrarian comparison.
+
+==================================================
+72. ORIGINALITY
+==================================================
+
+"Remix" must mean:
+
+extract underlying concept
++
+create original execution.
+
+Never encourage copying exact:
+
+script
+title
+caption
+thumbnail
+branding
+
+The assistant should create differentiated content.
+
+==================================================
+73. CONTENT ASSISTANT MODES
+==================================================
+
+Provide:
+
+EXPLORE
+PLAN
+WRITE
+OPTIMIZE
+REVIEW
+
+EXPLORE:
+Find opportunities.
+
+PLAN:
+Build concept.
+
+WRITE:
+Generate script.
+
+OPTIMIZE:
+Improve existing concept.
+
+REVIEW:
+Critique user's draft.
+
+==================================================
+74. REVIEW MODE
+==================================================
+
+User pastes:
+
+hook
+script
+title
+caption
+
+Assistant evaluates:
+
+Hook
+Clarity
+Novelty
+Pacing
+Payoff
+Audience fit
+Trend fit
+Differentiation
+CTA
+
+Then:
+
+KEEP
+CHANGE
+REMOVE
+
+==================================================
+75. SCRIPT REVIEW
+==================================================
+
+Example:
+
+HOOK:
+7/10
+
+Problem:
+takes 5 seconds to reveal the premise.
+
+Recommendation:
+move result to first sentence.
+
+PAYOFF:
+8/10
+
+CTA:
+4/10
+
+Recommendation:
+replace generic "follow for more"
+with a natural continuation prompt.
+
+==================================================
+76. CONTENT ASSISTANT UI
+==================================================
+
+Do not make it look like ChatGPT.
+
+Create a workspace.
+
+Left:
+
+context
+
+Trend
+Video
+Niche
+Channel
+
+Center:
+
+working canvas
+
+Right:
+
+evidence / intelligence
+
+This makes it feel like a creator tool.
+
+==================================================
+77. NO CHAT-FIRST DESIGN
+==================================================
+
+The Content Assistant should NOT be:
+
+giant chat window
++
+empty screen
++
+"How can I help?"
+
+Instead:
+
+structured workflow.
+
+==================================================
+78. EXAMPLE CONTENT ASSISTANT
+==================================================
+
+Selected trend:
+
+AI Agents
+
+Selected signal:
+
++64%
+
+Channel:
+
+AI / Developer
+
+Goal:
+
+Grow
+
+Then:
+
+RECOMMENDED ANGLES
+
+1.
+Live demonstration
+
+Fit: 94
+
+2.
+Contrarian explanation
+
+Fit: 82
+
+3.
+Beginner tutorial
+
+Fit: 76
+
+User clicks:
+
+Build this
+
+Then the assistant produces the next layer.
+
+==================================================
+79. CONTENT OPPORTUNITY SCORE
+==================================================
+
+Compute:
+
+OpportunityScore =
+trendStrength
+* channelFit
+* audienceFit
+* novelty
+* timing
+adjusted by competition and difficulty.
+
+Keep formula transparent internally.
+
+AI may explain it.
+
+==================================================
+80. TREND LIFECYCLE + CREATOR ACTION
+==================================================
+
+EARLY:
+
+Explore aggressively.
+
+RISING:
+
+Create now.
+
+PEAKING:
+
+Differentiate.
+
+SATURATED:
+
+Only enter with a new angle.
+
+COOLING:
+
+Use adjacent topics.
+
+This should appear in trend intelligence.
+
+==================================================
+81. CHANNEL MEMORY
+==================================================
+
+Prepare architecture for:
+
+creatorProfile
+contentHistory
+topPerformers
+weakPerformers
+preferredFormats
+language
+audience
+goals
+
+This allows personalized recommendations later.
+
+==================================================
+82. CROSS-PLATFORM FUTURE
+==================================================
+
+All content objects must contain:
+
+platform
+
+YouTube
+Instagram
+future platforms
+
+The intelligence engine must be platform-neutral.
+
+Do NOT create separate scoring engines.
+
+==================================================
+83. PLATFORM ADAPTER
+==================================================
+
+Architecture:
+
+PlatformAdapter
+
+YouTubeAdapter
+
+InstagramAdapter
+
+Future:
+
+TikTokAdapter
+
+All produce:
+
+NormalizedShortVideo
+
+The intelligence layer consumes normalized objects.
+
+==================================================
+84. FRONTEND INFORMATION ARCHITECTURE
+==================================================
+
+Main navigation:
+
+DISCOVER
+
+Home
+What's Trending
+Niches
+
+INTELLIGENCE
+
+Video Intelligence
+Trend Reports
+Creator Intelligence [LOCKED]
+
+CREATE
+
+Content Assistant
+Saved Ideas
+
+WORKSPACE
+
+Saved
+
+COMING SOON
+
+City Intelligence
+Historical Trends
+Competitor Radar
+
+==================================================
+85. HOME PAGE
+==================================================
+
+Home should NOT simply repeat Trending.
+
+It should be an intelligence overview.
+
+Sections:
+
+What's moving
+
+Emerging niches
+
+Trend lifecycle
+
+Your opportunities
+
+Recent signals
+
+Content Assistant
+
+==================================================
+86. HOME PERSONALIZATION
+==================================================
+
+If no channel context:
+
+show:
+
+India-wide opportunities.
+
+If channel context exists:
+
+show:
+
+For your channel
+
+This is where MOMENTUM becomes sticky.
+
+==================================================
+87. LANDING VS APP
+==================================================
+
+Landing:
+
+story
+education
+aspiration
+
+App:
+
+density
+speed
+intelligence
+action
+
+Never merge them visually.
+
+==================================================
+88. DESIGN LANGUAGE
+==================================================
+
+No generic AI interface.
+
+No:
+
+purple gradients
+sparkles
+floating AI assistant
+decorative highlights
+giant cards
+huge empty areas
+excessive pills
+random illustrations
+
+Use:
+
+tight typography
+subtle borders
+small radius
+high information density
+restrained orange accent
+professional iconography
+
+==================================================
+89. CURRENT BUG TRIAGE
+==================================================
+
+Before implementing new features:
+
+find why:
+
+Latest
+
+returns:
+
+0 results.
+
+Find why:
+
+Long / 24h / Music / AI taxonomy
+
+returns:
+
+0.
+
+Trace:
+
+UI state
+→ API request
+→ query planner
+→ YouTube API
+→ normalization
+→ classification
+→ filtering
+→ ranking
+→ response.
+
+Do not patch the UI.
+
+Fix the pipeline.
+
+==================================================
+90. LOGGING
+==================================================
+
+In development, log:
+
+request parameters
+
+retrieval plan
+
+API queries WITHOUT secrets
+
+candidate count
+
+enriched count
+
+classification count
+
+filter counts
+
+ranking count
+
+final count
+
+Example:
+
+DISCOVERY
+query: food
+region: IN
+window: 24h
+format: shorts
+
+retrieved: 50
+enriched: 50
+shorts: 31
+food: 18
+final: 18
+
+ranked: momentum
+
+This makes debugging possible.
+
+==================================================
+91. API RESPONSE CONTRACT
+==================================================
+
+Return:
+
+{
+  items,
+  meta: {
+    retrieved,
+    enriched,
+    matched,
+    shown,
+    coverage,
+    retrievedAt,
+    ranking,
+    filters
+  }
+}
+
+The frontend must display this appropriately.
+
+==================================================
+92. EMPTY STATES
+==================================================
+
+If zero results:
+
+Do NOT show:
+
+0 matching signals
+
+alone.
+
+Show:
+
+"No Shorts matched this combination."
+
+Then:
+
+"Your filters are narrower than the current discovery sample."
+
+Suggestions:
+
+Remove AI taxonomy
+Expand to 7 days
+Try another category
+
+==================================================
+93. DATA FALLBACK
+==================================================
+
+Demo data is allowed only when explicitly:
+
+DATA_MODE=demo
+
+Production:
+
+DATA_MODE=live
+
+Do not silently use fake data.
+
+==================================================
+94. TEST MATRIX
+==================================================
+
+Test:
+
+Latest + Shorts + India
+
+Hot + Shorts + India
+
+Popular + Shorts + India
+
+Latest + Food
+
+Latest + Music
+
+Latest + AI
+
+24h
+
+3d
+
+7d
+
+14d
+
+category filters
+
+taxonomy filters
+
+language
+
+no filters
+
+combined filters
+
+Every combination should produce understandable behavior.
+
+==================================================
+95. LANDING PAGE TEST
+==================================================
+
+Ask:
+
+Can a new user understand MOMENTUM in 10 seconds?
+
+Can they understand why it exists in 30 seconds?
+
+Can they understand how it works in 60 seconds?
+
+Can they see why it is different from YouTube Trending?
+
+If not:
+
+rewrite.
+
+==================================================
+96. CONTENT ASSISTANT TEST
+==================================================
+
+Test with:
+
+AI agents
+
+Gaming
+
+Food
+
+Fitness
+
+Finance
+
+For each:
+
+select trend
+
+analyze
+
+recommend concepts
+
+choose concept
+
+generate hook
+
+generate script
+
+generate caption
+
+generate hashtags
+
+review
+
+Ensure outputs are different and context-specific.
+
+==================================================
+97. DO NOT OVERPROMISE
+==================================================
+
+Never say:
+
+"guaranteed viral"
+
+"predicts virality"
+
+"knows what will go viral"
+
+Instead:
+
+"detects momentum"
+
+"identifies emerging signals"
+
+"finds opportunities"
+
+"helps you act earlier"
+
+==================================================
+98. PRODUCT POSITIONING
+==================================================
+
+The product is NOT:
+
+another trending page.
+
+It is:
+
+a short-form signal intelligence system.
+
+The creator workflow is:
+
+FIND
+→ UNDERSTAND
+→ DECIDE
+→ CREATE
+
+==================================================
+99. FINAL EXPERIENCE
+==================================================
+
+User should be able to:
+
+Open MOMENTUM
+
+↓
+
+See what is moving
+
+↓
+
+Open a signal
+
+↓
+
+Understand why
+
+↓
+
+Explore the niche
+
+↓
+
+See the lifecycle
+
+↓
+
+See content gaps
+
+↓
+
+Ask:
+
+"What should I make?"
+
+↓
+
+Get 3 relevant opportunities
+
+↓
+
+Choose one
+
+↓
+
+Build hook
+
+↓
+
+Build script
+
+↓
+
+Optimize
+
+↓
+
+Save
+
+That is the complete workflow.
+
+==================================================
+100. IMPLEMENTATION ORDER
+==================================================
+
+PHASE 1
+
+Fix discovery pipeline.
+
+PHASE 2
+
+Fix Latest / filters / ranking.
+
+PHASE 3
+
+Implement coverage + provenance.
+
+PHASE 4
+
+Build deep video intelligence.
+
+PHASE 5
+
+Build trend lifecycle.
+
+PHASE 6
+
+Build niche intelligence.
+
+PHASE 7
+
+Redesign Content Assistant.
+
+PHASE 8
+
+Build channel context.
+
+PHASE 9
+
+Build content opportunity engine.
+
+PHASE 10
+
+Build landing page.
+
+PHASE 11
+
+Build platform-neutral architecture.
+
+PHASE 12
+
+Prepare Instagram adapter.
+
+PHASE 13
+
+Full testing.
+
+PHASE 14
+
+Visual QA.
+
+PHASE 15
+
+Production deployment.
+
+==================================================
+101. FINAL QUALITY BAR
+==================================================
+
+MOMENTUM should feel like:
+
+A real intelligence product.
+
+Not:
+
+an AI demo.
+
+The product should be useful even if the AI is turned off.
+
+The deterministic intelligence must stand on its own.
+
+AI should make the product more insightful,
+not hide weak data.
+
+==================================================
+102. START NOW
+==================================================
+
+Do NOT start by redesigning everything.
+
+First:
+
+1. Inspect current discovery code.
+2. Reproduce the Latest=0 bug.
+3. Reproduce the combined-filter=0 bug.
+4. Trace the entire retrieval pipeline.
+5. Fix discovery architecture.
+6. Test real YouTube API.
+7. Report candidate/retrieval/filter counts.
+8. Only then proceed to Content Assistant and landing page.
+
+Do not fabricate successful tests.
+
+Do not claim complete YouTube coverage.
+
+Do not call a sample "the best on YouTube."
+
+Build the intelligence layer first.

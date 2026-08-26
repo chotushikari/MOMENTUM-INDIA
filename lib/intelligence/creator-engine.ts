@@ -1,4 +1,7 @@
 import type { ShortVideo } from "@/lib/types";
+import type { CreatorProfile } from "@/lib/intelligence/opportunity-engine";
+
+export type CreatorOutputMode = "Explore" | "Plan" | "Write" | "Optimize" | "Review";
 
 export type CreatorActionPlan = {
   thesis: string;
@@ -19,14 +22,16 @@ export type CreatorActionPlan = {
   postingChecklist: string[];
 };
 
-export function buildCreatorActionPlan(video: ShortVideo): CreatorActionPlan {
+export function buildCreatorActionPlan(video: ShortVideo, profile?: CreatorProfile): CreatorActionPlan {
   const kind = video.videoKind ?? (video.durationSeconds <= 180 ? "Shorts" : "Long");
-  const niche = video.category === "Other" ? "your niche" : video.category.toLowerCase();
+  const niche = profile?.niche || (video.category === "Other" ? "your niche" : video.category.toLowerCase());
+  const audience = profile?.audience || `${video.category} viewers`;
+  const language = profile?.language ? ` in ${profile.language}` : "";
   const evidence = `${compact(video.viewsPerHour)} views/hour from ${compact(video.views)} views`;
   const duration = formatDuration(video.durationSeconds);
   return {
     thesis: `${video.topic} is earning attention because the promise is easy to understand, quick to judge, and supported by ${evidence}.`,
-    audience: `${video.category} viewers who want a fast ${video.format.toLowerCase()} with an obvious before/after or payoff.`,
+    audience: `${audience} who want a fast ${video.format.toLowerCase()} with an obvious before/after or payoff${language}.`,
     nicheMechanics: [
       `The niche rewards a clear promise in the first second, especially when the topic is ${video.topic.toLowerCase()}.`,
       `The safest remake is to preserve the viewer payoff and change the subject, setting, or constraint.`,

@@ -45,6 +45,18 @@ export async function GET(request: Request) {
     matchMode: "exact",
     effectiveWindow: window ?? "7d",
     rankingScope: "Ranked within sample fixtures. Demo data is not a live YouTube-wide claim.",
+    retrievedCount: sampleVideos.length,
+    enrichedCount: sampleVideos.length,
+    matchedCount: demoItems.length,
+    shownCount: returned.length,
+    coverageWindow: window ?? "7d",
+    retrievedAt: new Date().toISOString(),
+    rankingMethod: sort === "Latest" ? "Latest first, then freshness and confidence" : sort === "Popular" ? "Reach first, then momentum" : "Momentum first, then velocity, reach, freshness, confidence",
+    sources: ["Sample fixture"],
+    coverageConfidence: demoItems.length >= 8 ? "Medium" : "Low",
+    signalConfidence: demoItems.length >= 8 ? "Medium" : "Low",
+    cacheHit: false,
+    filterBreakdown: { candidates: sampleVideos.length, format: demoItems.length, language: demoItems.length, category: demoItems.length, signal: demoItems.length },
   };
   return NextResponse.json({ mode, region: "India", format: format ?? "Shorts", updatedAt: new Date().toISOString(), scanner, meta, items: returned });
 }

@@ -10,6 +10,18 @@ export type TrendScanMeta = {
   effectiveWindow?: "24h" | "3d" | "7d" | "14d";
   rankingScope: string;
   note?: string;
+  retrievedCount?: number;
+  enrichedCount?: number;
+  matchedCount?: number;
+  shownCount?: number;
+  coverageWindow?: "24h" | "3d" | "7d" | "14d";
+  retrievedAt?: string;
+  rankingMethod?: string;
+  sources?: string[];
+  coverageConfidence?: "High" | "Medium" | "Low";
+  signalConfidence?: "High" | "Medium" | "Low";
+  cacheHit?: boolean;
+  filterBreakdown?: Record<string, number>;
 };
 
 export type ShortVideo = {

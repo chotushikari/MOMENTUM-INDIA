@@ -1,6 +1,13 @@
 import type { ShortVideo, TrendScanMeta } from "@/lib/types";
 import { estimateSnapshotMomentum } from "@/lib/intelligence/scoring";
 import { generateVideoTaxonomyBatch, isOpenAIConfigured } from "@/lib/openai";
+import { discoveryCacheKey, getDiscoveryCache, setDiscoveryCache } from "@/lib/discovery/cache";
+import { buildCoverageMeta } from "@/lib/discovery/coverage";
+import { createRetrievedCandidatePool } from "@/lib/discovery/candidate-retriever";
+import { mergeCandidateIds } from "@/lib/discovery/candidate-merger";
+import { buildDiscoveryPlan, categoryQueryDictionary } from "@/lib/discovery/query-planner";
+import { summarizeEnrichment } from "@/lib/discovery/enrichment";
+import type { DiscoveryDiagnostics, DiscoveryPlan, TrendScanOptions } from "@/lib/discovery/types";
 
 type Thumbnail = { url?: string };
 type VideoItem = {
@@ -16,17 +23,7 @@ type SearchResponse = { items?: SearchItem[] };
 const endpoint = "https://www.googleapis.com/youtube/v3";
 
 export type ShortClassification = { isShort: boolean; shortConfidence: number };
-export type TrendScanOptions = {
-  limit?: number;
-  sort?: "Hot" | "Popular" | "Latest";
-  format?: "All videos" | "Shorts" | "Long";
-  window?: "24h" | "3d" | "7d" | "14d";
-  language?: "All" | NonNullable<ShortVideo["language"]>;
-  category?: string;
-  signal?: ShortVideo["label"] | "All signals";
-  query?: string;
-  enrich?: boolean;
-};
+export type { TrendScanOptions } from "@/lib/discovery/types";
 export type TrendScanResult = { items: ShortVideo[]; meta: TrendScanMeta };
 
 export function classifyShort(durationSeconds: number): ShortClassification {
@@ -55,17 +52,6 @@ function youtubeUrl(path: string, key: string): URL {
   url.searchParams.set("key", key);
   return url;
 }
-
-const categoryQueries: Record<string, string> = {
-  Gaming: "gaming games gameplay",
-  "AI & Tech": "AI technology gadgets apps",
-  Entertainment: "entertainment trailer comedy music",
-  Music: "music song official",
-  Food: "food recipe street food",
-  Fitness: "fitness workout gym",
-  Education: "education learning tutorial",
-  Finance: "finance money business",
-};
 
 const relatedCategoryQueries: Record<string, string> = {
   Travel: "travel tourism places",
@@ -115,44 +101,6 @@ function relativePublishedAt(value: string): string {
   const hours = Math.max((Date.now() - Date.parse(value)) / 3_600_000, 0.5);
   if (hours < 24) return `${Math.max(1, Math.round(hours))}h ago`;
   return `${Math.round(hours / 24)}d ago`;
-}
-
-function publishedAfter(window: TrendScanOptions["window"]): string | null {
-  if (!window) return null;
-  const hours = window === "24h" ? 24 : window === "3d" ? 72 : window === "7d" ? 168 : 336;
-  return new Date(Date.now() - hours * 3_600_000).toISOString();
-}
-
-function searchOrder(sort: TrendScanOptions["sort"]): string {
-  if (sort === "Latest") return "date";
-  if (sort === "Popular") return "viewCount";
-  return "relevance";
-}
-
-function scanQuery(options: TrendScanOptions): string {
-  const parts = ["India"];
-  if (options.format === "Shorts") parts.push("shorts");
-  if (options.format === "Long") parts.push("youtube video");
-  if (options.category && options.category !== "All") parts.push(categoryQueries[options.category] ?? options.category);
-  if (options.query) parts.push(options.query);
-  return parts.join(" ");
-}
-
-function queryVariants(options: TrendScanOptions): string[] {
-  const base = scanQuery(options);
-  const category = options.category && options.category !== "All" ? categoryQueries[options.category] ?? options.category : "";
-  const format = options.format === "Shorts" ? "shorts" : options.format === "Long" ? "long video" : "";
-  return Array.from(new Set([
-    base,
-    ["India", category, format, "trending"].filter(Boolean).join(" "),
-    ["India", category, options.query, "latest"].filter(Boolean).join(" "),
-  ].filter(Boolean)));
-}
-
-function languageCode(language: TrendScanOptions["language"]): string | null {
-  if (language === "English") return "en";
-  if (language === "Hindi" || language === "Hinglish") return "hi";
-  return null;
 }
 
 function normalizeVideo(item: VideoItem): ShortVideo | null {
@@ -214,36 +162,44 @@ async function fetchVideoDetails(ids: string[], key: string): Promise<ShortVideo
   });
 }
 
-async function searchVideoIds(options: TrendScanOptions, key: string): Promise<{ ids: string[]; requests: number }> {
-  const collected: string[] = [];
+async function retrieveCandidateIds(plan: DiscoveryPlan, key: string): Promise<{ ids: string[]; requests: number; cacheHit: boolean }> {
+  const cacheKey = discoveryCacheKey({
+    platform: plan.retrieval.platform,
+    region: plan.retrieval.regionCode,
+    sort: plan.options.sort,
+    format: plan.options.format,
+    window: plan.options.window,
+    language: plan.options.language,
+    category: plan.options.category,
+    query: plan.options.query ?? "",
+  });
+  const cached = getDiscoveryCache<string[]>(cacheKey);
+  if (cached) return { ids: cached, requests: 0, cacheHit: true };
+  const groups: string[][] = [];
   let requests = 0;
   let lastError: unknown = null;
-  for (const query of queryVariants(options).slice(0, 3)) {
+  for (const plannedQuery of plan.retrieval.queries) {
     const search = youtubeUrl("search", key);
     search.searchParams.set("part", "snippet");
     search.searchParams.set("type", "video");
-    search.searchParams.set("regionCode", "IN");
-    search.searchParams.set("maxResults", "50");
-    search.searchParams.set("order", searchOrder(options.sort));
-    search.searchParams.set("q", query);
-    const after = publishedAfter(options.window);
-    if (after) search.searchParams.set("publishedAfter", after);
-    const relevanceLanguage = languageCode(options.language);
-    if (relevanceLanguage) search.searchParams.set("relevanceLanguage", relevanceLanguage);
+    search.searchParams.set("regionCode", plannedQuery.regionCode);
+    search.searchParams.set("maxResults", String(plan.retrieval.maxResultsPerQuery));
+    search.searchParams.set("order", plannedQuery.order);
+    search.searchParams.set("q", plannedQuery.query);
+    if (plannedQuery.publishedAfter) search.searchParams.set("publishedAfter", plannedQuery.publishedAfter);
+    if (plannedQuery.relevanceLanguage) search.searchParams.set("relevanceLanguage", plannedQuery.relevanceLanguage);
     try {
       const searchData = await fetchJson<SearchResponse>(search);
       requests += 1;
-      for (const id of (searchData.items ?? []).map((item) => item.id?.videoId).filter(Boolean) as string[]) {
-        if (!collected.includes(id)) collected.push(id);
-        if (collected.length >= 50) break;
-      }
+      groups.push((searchData.items ?? []).map((item) => item.id?.videoId).filter(Boolean) as string[]);
     } catch (error) {
       lastError = error;
     }
-    if (collected.length >= 50) break;
   }
   if (!requests && lastError) throw lastError;
-  return { ids: collected, requests };
+  const ids = mergeCandidateIds(groups, 250);
+  setDiscoveryCache(cacheKey, ids, 15 * 60_000);
+  return { ids, requests, cacheHit: false };
 }
 
 async function enrichTaxonomy(items: ShortVideo[], enabled = true): Promise<ShortVideo[]> {
@@ -271,18 +227,35 @@ function applyScanFilters(items: ShortVideo[], options: TrendScanOptions): Short
   });
 }
 
+function filterBreakdown(items: ShortVideo[], options: TrendScanOptions): Record<string, number> {
+  const byFormat = items.filter((item) => {
+    if (options.format === "Shorts") return item.videoKind === "Shorts";
+    if (options.format === "Long") return item.videoKind === "Long";
+    return true;
+  });
+  const byLanguage = byFormat.filter((item) => !options.language || options.language === "All" || item.language === options.language);
+  const byCategory = byLanguage.filter((item) => !options.category || options.category === "All" || item.category === options.category);
+  const bySignal = byCategory.filter((item) => !options.signal || options.signal === "All signals" || item.label === options.signal);
+  return {
+    candidates: items.length,
+    format: byFormat.length,
+    language: byLanguage.length,
+    category: byCategory.length,
+    signal: bySignal.length,
+  };
+}
+
 function sortScanned(items: ShortVideo[], sort: TrendScanOptions["sort"]): ShortVideo[] {
   return [...items].sort((a, b) => {
-    if (sort === "Latest") return latestRank(b) - latestRank(a) || Date.parse(b.rawPublishedAt ?? "") - Date.parse(a.rawPublishedAt ?? "");
+    if (sort === "Latest") return Date.parse(b.rawPublishedAt ?? "") - Date.parse(a.rawPublishedAt ?? "") || freshnessRank(b) - freshnessRank(a);
     if (sort === "Popular") return b.views - a.views || b.momentumScore - a.momentumScore || b.viewsPerHour - a.viewsPerHour;
     return b.momentumScore - a.momentumScore || b.viewsPerHour - a.viewsPerHour || b.views - a.views;
   });
 }
 
-function latestRank(video: ShortVideo): number {
+function freshnessRank(video: ShortVideo): number {
   const age = Math.max((Date.now() - Date.parse(video.rawPublishedAt ?? video.publishedAt)) / 3_600_000, 0.5);
-  const recencyScore = Math.max(0, 100 - Math.min(age, 336) / 336 * 100);
-  return recencyScore * 0.42 + video.momentumScore * 0.42 + (video.evidenceScore ?? 0) * 0.16;
+  return Math.max(0, 100 - Math.min(age, 336) / 336 * 100);
 }
 
 export async function fetchIndiaShorts(options: number | TrendScanOptions = 50): Promise<ShortVideo[]> {
@@ -293,15 +266,17 @@ export async function fetchIndiaTrendScan(options: number | TrendScanOptions = 5
   const scanOptions: TrendScanOptions = typeof options === "number" ? { limit: options, format: "Shorts" } : options;
   const key = process.env.YOUTUBE_API_KEY;
   if (!key) throw new Error("YOUTUBE_API_KEY is not configured");
-  const requestedLimit = Math.max(1, Math.min(scanOptions.limit ?? 50, 50));
+  const plan = buildDiscoveryPlan(scanOptions);
+  const requestedLimit = plan.options.limit;
   const candidateLimit = 50;
   const useSearch = Boolean(scanOptions.category && scanOptions.category !== "All") || Boolean(scanOptions.format) || Boolean(scanOptions.window) || Boolean(scanOptions.query) || scanOptions.sort === "Latest" || Boolean(scanOptions.language && scanOptions.language !== "All");
   if (useSearch) {
-    const exact = await safeRunSearchScan(scanOptions, key, requestedLimit);
+    const exact = await safeRunSearchScan(plan, key, "exact");
     if (exact.items.length) return exact;
-    if (scanOptions.window === "24h") {
+    if (plan.options.window === "24h") {
       for (const expandedWindow of ["3d", "7d", "14d"] as const) {
-        const expanded = await safeRunSearchScan({ ...scanOptions, window: expandedWindow }, key, requestedLimit);
+        const expandedPlan = buildDiscoveryPlan({ ...scanOptions, window: expandedWindow });
+        const expanded = await safeRunSearchScan(expandedPlan, key, "expanded-window");
         if (expanded.items.length) {
           return {
             items: expanded.items,
@@ -310,14 +285,16 @@ export async function fetchIndiaTrendScan(options: number | TrendScanOptions = 5
               exactMatches: 0,
               matchMode: "expanded-window",
               effectiveWindow: expandedWindow,
-              note: `No exact ${scanOptions.window} ${scanOptions.category && scanOptions.category !== "All" ? `${scanOptions.category} ` : ""}${scanOptions.format ?? "video"} matches were strong enough in the retrieved YouTube candidate pool, so this view expanded to ${expandedWindow}.`,
+              note: `No exact ${plan.options.window} ${plan.options.category !== "All" ? `${plan.options.category} ` : ""}${plan.options.format} matches were found in the current discovery sample, so this view expanded to ${expandedWindow}.`,
             },
           };
         }
       }
     }
-    if (scanOptions.category && scanOptions.category !== "All") {
-      const adjacent = await safeRunSearchScan({ ...scanOptions, category: "All", signal: "All signals", query: [categoryQueries[scanOptions.category] ?? scanOptions.category, scanOptions.query].filter(Boolean).join(" ") }, key, requestedLimit);
+    if (plan.options.category !== "All") {
+      const adjacentQuery = [categoryQueryDictionary[plan.options.category]?.[0] ?? plan.options.category, plan.options.query].filter(Boolean).join(" ");
+      const adjacentPlan = buildDiscoveryPlan({ ...scanOptions, category: "All", signal: "All signals", query: adjacentQuery });
+      const adjacent = await safeRunSearchScan(adjacentPlan, key, "adjacent");
       if (adjacent.items.length) {
         return {
           items: adjacent.items,
@@ -340,60 +317,87 @@ export async function fetchIndiaTrendScan(options: number | TrendScanOptions = 5
   const videoData = await fetchJson<VideoListResponse>(videos);
 
   const items = (videoData.items ?? []).flatMap((item) => { const normalized = normalizeVideo(item); return normalized ? [normalized] : []; });
-  const enriched = await enrichTaxonomy(items, scanOptions.enrich !== false);
+  const enriched = await enrichTaxonomy(items, plan.enrichment.needsAiTaxonomy);
   const exact = sortScanned(applyScanFilters(enriched, scanOptions), scanOptions.sort);
+  const diagnostics: DiscoveryDiagnostics = {
+    queryCount: 1,
+    retrievedCount: items.length,
+    dedupedCount: items.length,
+    enrichedCount: enriched.length,
+    matchedCount: exact.length,
+    shownCount: Math.min(exact.length, requestedLimit),
+    cacheHit: false,
+    filterBreakdown: filterBreakdown(enriched, scanOptions),
+  };
   return {
     items: exact.slice(0, requestedLimit),
-    meta: {
-      candidatePool: enriched.length,
-      exactMatches: exact.length,
-      returned: Math.min(exact.length, requestedLimit),
-      requestedLimit,
-      sourceRequests: 1,
-      matchMode: "exact",
-      effectiveWindow: scanOptions.window,
-      rankingScope: "Ranked within the retrieved YouTube India most-popular candidate pool, not all of YouTube.",
-    },
+    meta: buildCoverageMeta(plan, diagnostics, "exact"),
   };
 }
 
-async function runSearchScan(options: TrendScanOptions, key: string, requestedLimit: number): Promise<TrendScanResult> {
-  const { ids, requests } = await searchVideoIds(options, key);
-  const enriched = await enrichTaxonomy(await fetchVideoDetails(ids, key), options.enrich !== false);
-  const exact = sortScanned(applyScanFilters(enriched, options), options.sort);
+async function runSearchScan(plan: DiscoveryPlan, key: string, matchMode: TrendScanMeta["matchMode"]): Promise<TrendScanResult> {
+  const { ids, requests, cacheHit } = await retrieveCandidateIds(plan, key);
+  const pool = createRetrievedCandidatePool(plan, ids, requests, cacheHit);
+  const details = await fetchVideoDetails(pool.ids, key);
+  const enrichment = summarizeEnrichment(pool.ids.length, details, plan.enrichment.needsAiTaxonomy);
+  const enriched = await enrichTaxonomy(details, plan.enrichment.needsAiTaxonomy);
+  const exact = sortScanned(applyScanFilters(enriched, plan.options), plan.options.sort);
+  const diagnostics: DiscoveryDiagnostics = {
+    queryCount: pool.sourceRequests,
+    retrievedCount: pool.ids.length,
+    dedupedCount: pool.ids.length,
+    enrichedCount: enrichment.enrichedCount,
+    matchedCount: exact.length,
+    shownCount: Math.min(exact.length, plan.options.limit),
+    cacheHit: pool.cacheHit,
+    filterBreakdown: filterBreakdown(enriched, plan.options),
+  };
+  logDiscovery(plan, diagnostics, matchMode);
   return {
-    items: exact.slice(0, requestedLimit),
-    meta: {
-      candidatePool: enriched.length,
-      exactMatches: exact.length,
-      returned: Math.min(exact.length, requestedLimit),
-      requestedLimit,
-      sourceRequests: requests + (ids.length ? 1 : 0),
-      matchMode: "exact",
-      effectiveWindow: options.window,
-      rankingScope: "Ranked within the retrieved YouTube search candidate pool for these filters, not all of YouTube.",
-      note: exact.length ? undefined : "No exact matches were returned from the retrieved YouTube candidate pool for these filters.",
-    },
+    items: exact.slice(0, plan.options.limit),
+    meta: buildCoverageMeta(plan, diagnostics, matchMode, exact.length ? undefined : "No videos matched all selected filters after retrieval, enrichment, classification, and local filtering."),
   };
 }
 
-async function safeRunSearchScan(options: TrendScanOptions, key: string, requestedLimit: number): Promise<TrendScanResult> {
+function logDiscovery(plan: DiscoveryPlan, diagnostics: DiscoveryDiagnostics, matchMode: TrendScanMeta["matchMode"]): void {
+  if (process.env.NODE_ENV === "production") return;
+  console.info("[MOMENTUM discovery]", {
+    region: plan.retrieval.regionCode,
+    sort: plan.options.sort,
+    format: plan.options.format,
+    window: plan.options.window,
+    language: plan.options.language,
+    category: plan.options.category,
+    signal: plan.options.signal,
+    queryCount: plan.retrieval.queries.length,
+    queries: plan.retrieval.queries.map((query) => ({ q: query.query, order: query.order, purpose: query.purpose })),
+    matchMode,
+    retrieved: diagnostics.retrievedCount,
+    enriched: diagnostics.enrichedCount,
+    matched: diagnostics.matchedCount,
+    shown: diagnostics.shownCount,
+    cacheHit: diagnostics.cacheHit,
+    filters: diagnostics.filterBreakdown,
+  });
+}
+
+async function safeRunSearchScan(plan: DiscoveryPlan, key: string, matchMode: TrendScanMeta["matchMode"]): Promise<TrendScanResult> {
   try {
-    return await runSearchScan(options, key, requestedLimit);
+    return await runSearchScan(plan, key, matchMode);
   } catch {
+    const diagnostics: DiscoveryDiagnostics = {
+      queryCount: 0,
+      retrievedCount: 0,
+      dedupedCount: 0,
+      enrichedCount: 0,
+      matchedCount: 0,
+      shownCount: 0,
+      cacheHit: false,
+      filterBreakdown: { candidates: 0, format: 0, language: 0, category: 0, signal: 0 },
+    };
     return {
       items: [],
-      meta: {
-        candidatePool: 0,
-        exactMatches: 0,
-        returned: 0,
-        requestedLimit,
-        sourceRequests: 0,
-        matchMode: "exact",
-        effectiveWindow: options.window,
-        rankingScope: "YouTube did not return a usable candidate pool for this scan.",
-        note: "The source request failed for this exact scan. Try scanning again or widen the filters.",
-      },
+      meta: buildCoverageMeta(plan, diagnostics, matchMode, "YouTube did not return a usable candidate pool for this scan. Try scanning again or widen the filters."),
     };
   }
 }
