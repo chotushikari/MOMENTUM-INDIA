@@ -241,7 +241,15 @@ export function IdeasPage({ video = sampleVideos[0], sourceMode = "demo", presel
     setLoading(true); setError(false);
     try { const response = await fetch("/api/ideas", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: video.id, brief, outputMode, profile }) }); const payload = await response.json() as { plan?: CreatorActionPlan; ideas?: { title: string; rationale: string }[] }; if (!response.ok || !payload.ideas) throw new Error(); setPlan(payload.plan ?? buildCreatorActionPlan(video, profile)); setIdeas(payload.ideas); setGenerated(true); } catch { setError(true); } finally { setLoading(false); }
   }
-  return <><PageIntro eyebrow={`Content assistant / ${sourceMode === "live" ? "Live source" : "Sample fixture"}`} title="Turn a trend into something worth making." description="Choose how deep you want to go. MOMENTUM starts with source evidence and channel fit, then generates only the layer you ask for." action={<button className="quiet-button" onClick={() => { setGenerated(false); setIdeas([]); setPlan(buildCreatorActionPlan(video, profile)); }}><RefreshCw size={14} /> Reset</button>} />
+  const [copied, setCopied] = useState(false);
+  function copyBrief() {
+    const text = `MOMENTUM Creator Brief: ${video.title}\n\nTHESIS:\n${plan.thesis}\n\nHOOK:\n${plan.hook}\n\nSCRIPT BEATS:\n${plan.scriptBeats.join("\n")}\n\nREMIX ANGLES:\n${plan.remakeAngles.join("\n")}\n\nHASHTAGS:\n${plan.hashtags.join(" ")}`;
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 3000);
+    });
+  }
+  return <><PageIntro eyebrow={`Content assistant / ${sourceMode === "live" ? "Live source" : "Sample fixture"}`} title="Turn a trend into something worth making." description="Choose how deep you want to go. MOMENTUM starts with source evidence and channel fit, then generates only the layer you ask for." action={<div style={{ display: "flex", gap: "8px" }}><button className="quiet-button" onClick={copyBrief}>{copied ? "Copied! ✦" : "Copy Brief 📋"}</button><button className="quiet-button" onClick={() => { setGenerated(false); setIdeas([]); setPlan(buildCreatorActionPlan(video, profile)); }}><RefreshCw size={14} /> Reset</button></div>} />
       {preselectedVideoId && <div className="prefilled-banner"><Sparkles size={14} /><span>Pre-filled from video — <strong>{video.title}</strong>. The content plan is ready to generate.</span><Link href={`/trending/${preselectedVideoId}`} className="back-link" style={{ display: "inline" }}>← Back to signal</Link></div>}
     <div className="creator-studio">
       <section className="source-dossier panel-surface">
@@ -308,6 +316,7 @@ export function IdeasPage({ video = sampleVideos[0], sourceMode = "demo", presel
       </section>
     </div></>;
 }
+
 
 export function SavedPage() {
   const savedIds = JSON.parse(useSyncExternalStore(subscribeToSaved, savedSnapshot, savedServerSnapshot)) as string[];
